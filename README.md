@@ -1,59 +1,111 @@
-# FinanceDashboard
+# 💰 Finance Dashboard
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.12.
+A personal finance tracker built with **Angular 18**, **Signals**, and **Tailwind CSS**. Track your income and expenses, visualize spending by category, and monitor your monthly balance — all stored locally in your browser.
 
-## Development server
+![Angular](https://img.shields.io/badge/Angular-18-dd0031?style=flat-square&logo=angular)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-38bdf8?style=flat-square&logo=tailwindcss)
+![Chart.js](https://img.shields.io/badge/Chart.js-4-ff6384?style=flat-square&logo=chartdotjs)
 
-To start a local development server, run:
+---
+
+## ✨ Features
+
+- 📊 Monthly summary — total income, expenses, and balance
+- 🍩 Spending breakdown by category (donut chart)
+- 📈 Monthly cash flow chart (bar chart)
+- 📋 Transaction list with filters
+- ➕ Add, edit, and delete transactions
+- 🌙 Dark mode support
+- 💾 Data persisted in localStorage — no backend required
+
+---
+
+## 🛠️ Tech Stack
+
+| Technology | Purpose |
+|---|---|
+| Angular 18 | Framework — standalone components, new control flow |
+| Angular Signals | Reactive state management |
+| Tailwind CSS v3 | Utility-first styling |
+| Chart.js | Data visualization |
+| localStorage | Client-side data persistence |
+| TypeScript 5 | Strict typing throughout |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- Angular CLI 18+
 
 ```bash
+npm install -g @angular/cli
+```
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Alx93Dev/finance-dashboard.git
+
+# Navigate to the project
+cd finance-dashboard
+
+# Install dependencies
+npm install
+
+# Start the development server
 ng serve
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Open your browser at `http://localhost:4200`
 
-## Code scaffolding
+---
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## 📁 Project Structure
 
-```bash
-ng generate component component-name
+```
+src/
+└── app/
+    ├── core/
+    │   ├── models/
+    │   │   ├── transaction.model.ts
+    │   │   └── category.model.ts
+    │   └── services/
+    │       ├── transaction.service.ts   ← signals-based state
+    │       └── storage.service.ts
+    ├── features/
+    │   ├── dashboard/
+    │   └── transactions/
+    │       └── transaction-form/
+    └── shared/
+        └── components/
+            ├── summary-card/
+            └── nav/
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+---
 
-```bash
-ng generate --help
-```
+## 🧠 Key Angular Concepts Used
 
-## Building
+- **Signals & computed()** — reactive state without RxJS overhead
+- **Standalone components** — no NgModules
+- **input()** — new signal-based input API
+- **inject()** — functional dependency injection
+- **@if / @for** — new Angular 17+ control flow syntax
+- **Reactive Forms** — for transaction creation and editing
 
-To build the project run:
+---
 
-```bash
-ng build
-```
+## 📸 Screenshots
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+> Coming soon
 
-## Running unit tests
+---
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+## 📄 License
 
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+MIT

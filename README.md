@@ -1,8 +1,8 @@
 # 💰 Finance Dashboard
 
-A personal finance tracker built with **Angular 18**, **Signals**, and **Tailwind CSS**. Track your income and expenses, visualize spending by category, and monitor your monthly balance — all stored locally in your browser.
+A personal finance tracker built with **Angular 21**, **Signals**, and **Tailwind CSS**. Track your income and expenses, visualize spending by category, and monitor your monthly balance — all stored locally in your browser.
 
-![Angular](https://img.shields.io/badge/Angular-18-dd0031?style=flat-square&logo=angular)
+![Angular](https://img.shields.io/badge/Angular-21-dd0031?style=flat-square&logo=angular)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-38bdf8?style=flat-square&logo=tailwindcss)
 ![Chart.js](https://img.shields.io/badge/Chart.js-4-ff6384?style=flat-square&logo=chartdotjs)
@@ -25,7 +25,7 @@ A personal finance tracker built with **Angular 18**, **Signals**, and **Tailwin
 
 | Technology | Purpose |
 |---|---|
-| Angular 18 | Framework — standalone components, new control flow |
+| Angular 21 | Framework — standalone components, new control flow |
 | Angular Signals | Reactive state management |
 | Tailwind CSS v3 | Utility-first styling |
 | Chart.js | Data visualization |
@@ -39,10 +39,10 @@ A personal finance tracker built with **Angular 18**, **Signals**, and **Tailwin
 ### Prerequisites
 
 - Node.js 18+
-- Angular CLI 18+
+- Angular CLI 21+
 
 ```bash
-npm install -g @angular/cli
+pnpm install -g @angular/cli
 ```
 
 ### Installation
@@ -55,10 +55,10 @@ git clone https://github.com/Alx93Dev/finance-dashboard.git
 cd finance-dashboard
 
 # Install dependencies
-npm install
+pnpm install
 
 # Start the development server
-ng serve
+pnpm start
 ```
 
 Open your browser at `http://localhost:4200`

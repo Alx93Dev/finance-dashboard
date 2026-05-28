@@ -1,10 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { TransactionService } from '../../core/services/transaction.service';
 import { SummaryCardComponent } from '../../shared/components/summary-card/summary-card.component';
+import { DonutChartComponent } from '../../shared/components/charts/donut-chart.component';
+import { BarChartComponent } from '../../shared/components/charts/bar-chart.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [SummaryCardComponent],
+  imports: [SummaryCardComponent, DonutChartComponent, BarChartComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-5xl mx-auto px-4 py-8" id="main-content">
@@ -15,24 +17,36 @@ import { SummaryCardComponent } from '../../shared/components/summary-card/summa
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <app-summary-card
             label="Ingresos"
-            [amount]="transactionService.totalIncome()"
+            [amount]="tx.totalIncome()"
             colorClass="text-emerald-600"
           />
           <app-summary-card
             label="Gastos"
-            [amount]="transactionService.totalExpenses()"
+            [amount]="tx.totalExpenses()"
             colorClass="text-red-500"
           />
           <app-summary-card
             label="Balance"
-            [amount]="transactionService.balance()"
-            [colorClass]="transactionService.balance() >= 0 ? 'text-indigo-600' : 'text-red-600'"
+            [amount]="tx.balance()"
+            [colorClass]="tx.balance() >= 0 ? 'text-indigo-600' : 'text-red-600'"
           />
         </div>
       </section>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <app-donut-chart />
+        <app-bar-chart />
+      </div>
     </main>
   `,
 })
 export class DashboardComponent {
-  protected readonly transactionService = inject(TransactionService);
+  tx = inject(TransactionService);
+
+  constructor() {
+    if (this.tx.transactions().length === 0) {
+      this.tx.loadSeedData();
+    }
+  }
 }
+

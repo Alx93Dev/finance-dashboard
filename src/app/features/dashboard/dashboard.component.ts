@@ -41,12 +41,6 @@ import { BarChartComponent } from '../../shared/components/charts/bar-chart.comp
   `,
 })
 export class DashboardComponent {
-  tx = inject(TransactionService);
-
-  constructor() {
-    if (this.tx.transactions().length === 0) {
-      this.tx.loadSeedData();
-    }
-  }
+  protected readonly tx = inject(TransactionService);
 }
 

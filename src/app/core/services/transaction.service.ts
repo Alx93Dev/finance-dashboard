@@ -62,6 +62,14 @@ export class TransactionService {
     });
   }
 
+  update(transaction: Transaction): void {
+    this.transactions.update(current => {
+      const updated = current.map(t => t.id === transaction.id ? transaction : t);
+      this.storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+  }
+
   getCategoryById(id: string) {
     return this.categories().find(c => c.id === id);
   }

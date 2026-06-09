@@ -1,52 +1,91 @@
-import { Component, OnInit, inject, ElementRef, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  ElementRef,
+  inject,
+  viewChild,
+} from '@angular/core';
 import { Chart } from 'chart.js/auto';
 import { TransactionService } from '../../../core/services/transaction.service';
 
+const MONTH_LABELS: Record<string, string> = {
+  '01': 'Ene', '02': 'Feb', '03': 'Mar', '04': 'Abr',
+  '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Ago',
+  '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dic',
+};
+
 @Component({
   selector: 'app-bar-chart',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
       <h2 class="text-sm font-medium text-gray-500 mb-4">Flujo mensual</h2>
       <div class="relative h-52">
-        <canvas #chartCanvas></canvas>
+        <canvas #chartCanvas role="img" aria-label="Gráfico de flujo mensual de ingresos y gastos"></canvas>
       </div>
     </div>
   `,
 })
-export class BarChartComponent implements OnInit {
-  private tx = inject(TransactionService);
-  chartCanvas = viewChild.required<ElementRef>('chartCanvas');
+export class BarChartComponent {
+  private readonly transactionService = inject(TransactionService);
+  private readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
+  private chart: Chart | null = null;
 
-  ngOnInit() {
-    const months: Record<string, { income: number; expense: number }> = {};
+  constructor() {
+    effect(() => {
+      const monthlyTotals: Record<string, { income: number; expense: number }> = {};
 
-    for (const t of this.tx.transactions()) {
-      const month = t.date.slice(0, 7); // '2025-01'
-      if (!months[month]) months[month] = { income: 0, expense: 0 };
-      if (t.type === 'income') months[month].income += t.amount;
-      else months[month].expense += t.amount;
-    }
+      for (const transaction of this.transactionService.transactions()) {
+        const yearMonth = transaction.date.slice(0, 7);
+        if (!monthlyTotals[yearMonth]) {
+          monthlyTotals[yearMonth] = { income: 0, expense: 0 };
+        }
+        if (transaction.type === 'income') {
+          monthlyTotals[yearMonth].income += transaction.amount;
+        } else {
+          monthlyTotals[yearMonth].expense += transaction.amount;
+        }
+      }
 
-    const labels = Object.keys(months).sort();
-    const income  = labels.map(m => months[m].income);
-    const expense = labels.map(m => months[m].expense);
+      const sortedMonths = Object.keys(monthlyTotals).sort();
+      const labels = sortedMonths.map(m => {
+        const [, month] = m.split('-');
+        return MONTH_LABELS[month] ?? m;
+      });
+      const incomeData  = sortedMonths.map(m => monthlyTotals[m].income);
+      const expenseData = sortedMonths.map(m => monthlyTotals[m].expense);
 
-    new Chart(this.chartCanvas().nativeElement, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          { label: 'Ingresos', data: income,  backgroundColor: '#10b981' },
-          { label: 'Gastos',   data: expense, backgroundColor: '#ef4444' },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 12 } } },
-        scales: { y: { ticks: { font: { size: 11 } } } },
-      },
+      if (this.chart) {
+        this.chart.data.labels = labels;
+        this.chart.data.datasets[0].data = incomeData;
+        this.chart.data.datasets[1].data = expenseData;
+        this.chart.update();
+      } else {
+        this.chart = new Chart(this.chartCanvas().nativeElement, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Ingresos', data: incomeData,  backgroundColor: '#10b981' },
+              { label: 'Gastos',   data: expenseData, backgroundColor: '#ef4444' },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: { font: { size: 12 }, boxWidth: 12 },
+              },
+            },
+            scales: {
+              y: { ticks: { font: { size: 11 } } },
+            },
+          },
+        });
+      }
     });
   }
 }

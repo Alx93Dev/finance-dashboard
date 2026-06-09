@@ -12,7 +12,7 @@ import { BarChartComponent } from '../../shared/components/charts/bar-chart.comp
     <main class="max-w-5xl mx-auto px-4 py-8" id="main-content">
       <h1 class="text-2xl font-semibold text-gray-900 mb-6">Resumen</h1>
 
-      <section aria-labelledby="summary-heading">
+      <section aria-labelledby="summary-heading" class="mb-6">
         <h2 id="summary-heading" class="sr-only">Resumen financiero</h2>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <app-summary-card
@@ -33,10 +33,10 @@ import { BarChartComponent } from '../../shared/components/charts/bar-chart.comp
         </div>
       </section>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <section aria-label="Gráficos" class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <app-donut-chart />
         <app-bar-chart />
-      </div>
+      </section>
     </main>
   `,
 })

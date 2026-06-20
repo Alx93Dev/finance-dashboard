@@ -1,5 +1,7 @@
 # 💰 Finance Dashboard
 
+🔗 **[Ver demo en vivo](https://finance-dashboard-phi-hazel.vercel.app/)**
+
 A personal finance tracker built with **Angular 21**, **Signals**, and **Tailwind CSS**. Track your income and expenses, visualize spending by category, and monitor your monthly balance — all stored locally in your browser.
 
 ![Angular](https://img.shields.io/badge/Angular-21-dd0031?style=flat-square&logo=angular)
@@ -100,9 +102,9 @@ src/
 
 ---
 
-## 📸 Screenshots
+## 📸 Screenshot
 
-> Coming soon
+![Finance Dashboard](./docs/screenshot.png)
 
 ---
 

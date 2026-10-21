@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Transaction } from '../models/transaction.model';
-import { TransactionService } from './transaction.service';
+import { TransactionService, shiftMonth } from './transaction.service';
 
 const STORAGE_KEY = 'transactions';
 const SEEDED_KEY = 'seeded_v3';
@@ -126,6 +126,71 @@ describe('TransactionService', () => {
       const reloaded = createService();
 
       expect(reloaded.transactions()).toEqual(saved);
+    });
+  });
+
+  describe('month selection', () => {
+    it('should start on the most recent month with transactions', () => {
+      const existing: Transaction[] = [
+        { id: 'a', description: 'Café',  amount: 3000, categoryId: '3', date: '2025-02-01', type: 'expense' },
+        { id: 'b', description: 'Metro', amount: 800,  categoryId: '4', date: '2025-04-12', type: 'expense' },
+      ];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+      localStorage.setItem(SEEDED_KEY, 'true');
+
+      expect(createService().selectedMonth()).toBe('2025-04');
+    });
+
+    it('should start on the seed data month on first run', () => {
+      expect(createService().selectedMonth()).toBe('2025-01');
+    });
+
+    it('should start on the current month when there are no transactions', () => {
+      localStorage.setItem(SEEDED_KEY, 'true');
+      const now = new Date();
+      const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      expect(createService().selectedMonth()).toBe(expected);
+    });
+
+    it('should compute totals for the selected month only', () => {
+      localStorage.setItem(SEEDED_KEY, 'true');
+      const service = createService();
+      service.add({ description: 'Sueldo',   amount: 1000, categoryId: '1', date: '2025-02-28', type: 'income'  });
+      service.add({ description: 'Arriendo', amount: 400,  categoryId: '7', date: '2025-02-01', type: 'expense' });
+      service.add({ description: 'Sueldo',   amount: 1200, categoryId: '1', date: '2025-03-31', type: 'income'  });
+
+      service.selectedMonth.set('2025-02');
+      expect(service.monthTransactions().length).toBe(2);
+      expect(service.monthIncome()).toBe(1000);
+      expect(service.monthExpenses()).toBe(400);
+      expect(service.monthBalance()).toBe(600);
+
+      service.nextMonth();
+      expect(service.selectedMonth()).toBe('2025-03');
+      expect(service.monthIncome()).toBe(1200);
+      expect(service.monthExpenses()).toBe(0);
+
+      service.nextMonth();
+      expect(service.monthTransactions()).toEqual([]);
+      expect(service.monthBalance()).toBe(0);
+    });
+
+    it('should move between months across year boundaries', () => {
+      const service = createService();
+      service.selectedMonth.set('2025-01');
+
+      service.previousMonth();
+      expect(service.selectedMonth()).toBe('2024-12');
+
+      service.nextMonth();
+      service.nextMonth();
+      expect(service.selectedMonth()).toBe('2025-02');
+    });
+
+    it('should shift month keys by any number of months', () => {
+      expect(shiftMonth('2025-11', 3)).toBe('2026-02');
+      expect(shiftMonth('2025-03', -15)).toBe('2023-12');
     });
   });
 

@@ -17,6 +17,18 @@ const SEED_DATA: Omit<Transaction, 'id'>[] = [
 const STORAGE_KEY = 'transactions';
 const SEEDED_KEY  = 'seeded_v3';
 
+/** Shifts a 'YYYY-MM' month key by `delta` months. */
+export function shiftMonth(month: string, delta: number): string {
+  const [year, monthIndex] = month.split('-').map(Number);
+  const shifted = new Date(year, monthIndex - 1 + delta, 1);
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function currentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TransactionService {
   private readonly storage = inject(StorageService);
@@ -41,8 +53,39 @@ export class TransactionService {
 
   readonly balance = computed(() => this.totalIncome() - this.totalExpenses());
 
+  /** Month shown on the dashboard, as 'YYYY-MM'. */
+  readonly selectedMonth = signal(currentMonth());
+
+  readonly monthTransactions = computed(() => {
+    const month = this.selectedMonth();
+    return this.transactions().filter(t => t.date.startsWith(month));
+  });
+
+  readonly monthIncome = computed(() =>
+    this.monthTransactions()
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0)
+  );
+
+  readonly monthExpenses = computed(() =>
+    this.monthTransactions()
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0)
+  );
+
+  readonly monthBalance = computed(() => this.monthIncome() - this.monthExpenses());
+
   constructor() {
     this.initializeSeedData();
+    this.selectedMonth.set(this.latestMonth() ?? currentMonth());
+  }
+
+  previousMonth(): void {
+    this.selectedMonth.update(month => shiftMonth(month, -1));
+  }
+
+  nextMonth(): void {
+    this.selectedMonth.update(month => shiftMonth(month, 1));
   }
 
   add(transaction: Omit<Transaction, 'id'>): void {
@@ -72,6 +115,13 @@ export class TransactionService {
 
   getCategoryById(id: string) {
     return this.categories().find(c => c.id === id);
+  }
+
+  /** Most recent month that has transactions, or null when there are none. */
+  private latestMonth(): string | null {
+    const dates = this.transactions().map(t => t.date);
+    if (dates.length === 0) return null;
+    return dates.reduce((latest, date) => (date > latest ? date : latest)).slice(0, 7);
   }
 
   private initializeSeedData(): void {

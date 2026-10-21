@@ -10,7 +10,7 @@ import { BarChartComponent } from '../../shared/components/charts/bar-chart.comp
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-5xl mx-auto px-4 py-8" id="main-content">
-      <h1 class="text-2xl font-semibold text-gray-900 mb-6">Resumen</h1>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Resumen</h1>
 
       <section aria-labelledby="summary-heading" class="mb-6">
         <h2 id="summary-heading" class="sr-only">Resumen financiero</h2>
@@ -18,17 +18,17 @@ import { BarChartComponent } from '../../shared/components/charts/bar-chart.comp
           <app-summary-card
             label="Ingresos"
             [amount]="tx.totalIncome()"
-            colorClass="text-emerald-600"
+            colorClass="text-emerald-600 dark:text-emerald-400"
           />
           <app-summary-card
             label="Gastos"
             [amount]="tx.totalExpenses()"
-            colorClass="text-red-500"
+            colorClass="text-red-500 dark:text-red-400"
           />
           <app-summary-card
             label="Balance"
             [amount]="tx.balance()"
-            [colorClass]="tx.balance() >= 0 ? 'text-indigo-600' : 'text-red-600'"
+            [colorClass]="tx.balance() >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-red-600 dark:text-red-400'"
           />
         </div>
       </section>

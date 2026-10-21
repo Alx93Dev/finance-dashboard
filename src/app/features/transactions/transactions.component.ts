@@ -19,12 +19,12 @@ interface FilterOption {
     <main class="max-w-5xl mx-auto px-4 py-8" id="main-content">
       <div class="mb-6 flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-semibold text-gray-900">Transacciones</h1>
-          <p class="text-gray-500 text-sm mt-1">{{ filteredTransactions().length }} registros</p>
+          <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Transacciones</h1>
+          <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">{{ filteredTransactions().length }} registros</p>
         </div>
         <button
           (click)="openNewForm()"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+          class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
           aria-label="Agregar nueva transacción"
         >
           <span aria-hidden="true">+</span> Nueva
@@ -36,8 +36,8 @@ interface FilterOption {
           <button
             (click)="activeFilter.set(option.value)"
             [class]="activeFilter() === option.value
-              ? 'px-4 py-2 rounded-xl text-sm font-medium bg-gray-900 text-white'
-              : 'px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'"
+              ? 'px-4 py-2 rounded-xl text-sm font-medium bg-gray-900 text-white dark:bg-indigo-600'
+              : 'px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'"
             [attr.aria-pressed]="activeFilter() === option.value"
           >
             {{ option.label }}
@@ -46,16 +46,16 @@ interface FilterOption {
       </div>
 
       <section aria-label="Lista de transacciones">
-        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
           @if (filteredTransactions().length === 0) {
-            <p class="py-16 text-center text-gray-400 text-sm">
+            <p class="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
               No hay transacciones
             </p>
           } @else {
             <ul>
               @for (transaction of filteredTransactions(); track transaction.id; let last = $last) {
                 <li
-                  [class]="'flex items-center justify-between px-6 py-4' + (!last ? ' border-b border-gray-50' : '')"
+                  [class]="'flex items-center justify-between px-6 py-4' + (!last ? ' border-b border-gray-50 dark:border-gray-800' : '')"
                 >
                   <div class="flex items-center gap-3">
                     <span
@@ -64,8 +64,8 @@ interface FilterOption {
                       aria-hidden="true"
                     ></span>
                     <div>
-                      <p class="text-sm font-medium text-gray-900">{{ transaction.description }}</p>
-                      <p class="text-xs text-gray-400 mt-0.5">
+                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ transaction.description }}</p>
+                      <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                         {{ getCategoryName(transaction.categoryId) }} · {{ transaction.date | date:'dd MMM yyyy' }}
                       </p>
                     </div>
@@ -74,13 +74,13 @@ interface FilterOption {
                   <div class="flex items-center gap-2">
                     <span
                       class="text-sm font-semibold"
-                      [class]="transaction.type === 'income' ? 'text-emerald-600' : 'text-red-500'"
+                      [class]="transaction.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'"
                     >
                       {{ transaction.type === 'income' ? '+' : '-' }}{{ transaction.amount | currency:'$':'symbol':'1.0-0' }}
                     </span>
                     <button
                       (click)="openEditForm(transaction)"
-                      class="p-1.5 text-gray-300 hover:text-indigo-500 transition-colors rounded"
+                      class="p-1.5 text-gray-300 dark:text-gray-600 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors rounded"
                       [attr.aria-label]="'Editar ' + transaction.description"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -89,7 +89,7 @@ interface FilterOption {
                     </button>
                     <button
                       (click)="removeTransaction(transaction.id)"
-                      class="p-1.5 text-gray-300 hover:text-red-400 transition-colors rounded"
+                      class="p-1.5 text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors rounded"
                       [attr.aria-label]="'Eliminar ' + transaction.description"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

@@ -6,8 +6,8 @@ import { CurrencyPipe } from '@angular/common';
   imports: [CurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-      <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">{{ label() }}</p>
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm">
+      <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">{{ label() }}</p>
       <p
         class="text-3xl font-semibold tabular-nums"
         [class]="colorClass()"
@@ -20,5 +20,5 @@ import { CurrencyPipe } from '@angular/common';
 export class SummaryCardComponent {
   readonly label      = input.required<string>();
   readonly amount     = input.required<number>();
-  readonly colorClass = input<string>('text-gray-900');
+  readonly colorClass = input<string>('text-gray-900 dark:text-gray-100');
 }

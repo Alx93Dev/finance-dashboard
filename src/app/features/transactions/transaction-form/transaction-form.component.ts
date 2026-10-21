@@ -17,24 +17,24 @@ import { TransactionService } from '../../../core/services/transaction.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
-      class="fixed inset-0 z-40 bg-black/40 flex items-end sm:items-center justify-center p-4"
+      class="fixed inset-0 z-40 bg-black/40 dark:bg-black/60 flex items-end sm:items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       [attr.aria-labelledby]="'form-title'"
       (click)="onBackdropClick($event)"
     >
       <div
-        class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
+        class="bg-white dark:bg-gray-900 dark:border dark:border-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6"
         (click)="$event.stopPropagation()"
       >
         <div class="flex items-center justify-between mb-6">
-          <h2 id="form-title" class="text-lg font-semibold text-gray-900">
+          <h2 id="form-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
             {{ isEditing() ? 'Editar transacción' : 'Nueva transacción' }}
           </h2>
           <button
             type="button"
             (click)="cancelled.emit()"
-            class="text-gray-400 hover:text-gray-600 transition-colors rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             aria-label="Cerrar formulario"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -46,14 +46,14 @@ import { TransactionService } from '../../../core/services/transaction.service';
         <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
           <!-- Tipo -->
           <fieldset class="mb-4">
-            <legend class="block text-sm font-medium text-gray-700 mb-2">Tipo</legend>
+            <legend class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipo</legend>
             <div class="flex gap-2" role="group">
               <button
                 type="button"
                 (click)="setType('income')"
                 [class]="form.get('type')?.value === 'income'
                   ? 'flex-1 py-2 rounded-xl text-sm font-medium bg-emerald-500 text-white'
-                  : 'flex-1 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                  : 'flex-1 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'"
                 [attr.aria-pressed]="form.get('type')?.value === 'income'"
               >
                 Ingreso
@@ -63,7 +63,7 @@ import { TransactionService } from '../../../core/services/transaction.service';
                 (click)="setType('expense')"
                 [class]="form.get('type')?.value === 'expense'
                   ? 'flex-1 py-2 rounded-xl text-sm font-medium bg-red-500 text-white'
-                  : 'flex-1 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                  : 'flex-1 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'"
                 [attr.aria-pressed]="form.get('type')?.value === 'expense'"
               >
                 Gasto
@@ -73,7 +73,7 @@ import { TransactionService } from '../../../core/services/transaction.service';
 
           <!-- Descripción -->
           <div class="mb-4">
-            <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Descripción
             </label>
             <input
@@ -83,18 +83,18 @@ import { TransactionService } from '../../../core/services/transaction.service';
               placeholder="Ej: Supermercado"
               class="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               [class]="descriptionInvalid()
-                ? 'border-red-300 bg-red-50'
-                : 'border-gray-200 bg-white'"
+                ? 'border-red-300 bg-red-50 dark:border-red-500/60 dark:bg-red-950/40 dark:text-gray-100'
+                : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'"
               autocomplete="off"
             />
             @if (descriptionInvalid()) {
-              <p class="mt-1 text-xs text-red-500" role="alert">La descripción es requerida</p>
+              <p class="mt-1 text-xs text-red-500 dark:text-red-400" role="alert">La descripción es requerida</p>
             }
           </div>
 
           <!-- Monto -->
           <div class="mb-4">
-            <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Monto
             </label>
             <input
@@ -105,17 +105,17 @@ import { TransactionService } from '../../../core/services/transaction.service';
               min="1"
               class="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               [class]="amountInvalid()
-                ? 'border-red-300 bg-red-50'
-                : 'border-gray-200 bg-white'"
+                ? 'border-red-300 bg-red-50 dark:border-red-500/60 dark:bg-red-950/40 dark:text-gray-100'
+                : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'"
             />
             @if (amountInvalid()) {
-              <p class="mt-1 text-xs text-red-500" role="alert">Ingresa un monto mayor a 0</p>
+              <p class="mt-1 text-xs text-red-500 dark:text-red-400" role="alert">Ingresa un monto mayor a 0</p>
             }
           </div>
 
           <!-- Categoría -->
           <div class="mb-4">
-            <label for="categoryId" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="categoryId" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Categoría
             </label>
             <select
@@ -123,8 +123,8 @@ import { TransactionService } from '../../../core/services/transaction.service';
               formControlName="categoryId"
               class="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               [class]="categoryInvalid()
-                ? 'border-red-300 bg-red-50'
-                : 'border-gray-200 bg-white'"
+                ? 'border-red-300 bg-red-50 dark:border-red-500/60 dark:bg-red-950/40 dark:text-gray-100'
+                : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'"
             >
               <option value="" disabled>Selecciona una categoría</option>
               @for (category of filteredCategories(); track category.id) {
@@ -132,13 +132,13 @@ import { TransactionService } from '../../../core/services/transaction.service';
               }
             </select>
             @if (categoryInvalid()) {
-              <p class="mt-1 text-xs text-red-500" role="alert">Selecciona una categoría</p>
+              <p class="mt-1 text-xs text-red-500 dark:text-red-400" role="alert">Selecciona una categoría</p>
             }
           </div>
 
           <!-- Fecha -->
           <div class="mb-6">
-            <label for="date" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fecha
             </label>
             <input
@@ -147,11 +147,11 @@ import { TransactionService } from '../../../core/services/transaction.service';
               formControlName="date"
               class="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               [class]="dateInvalid()
-                ? 'border-red-300 bg-red-50'
-                : 'border-gray-200 bg-white'"
+                ? 'border-red-300 bg-red-50 dark:border-red-500/60 dark:bg-red-950/40 dark:text-gray-100'
+                : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'"
             />
             @if (dateInvalid()) {
-              <p class="mt-1 text-xs text-red-500" role="alert">La fecha es requerida</p>
+              <p class="mt-1 text-xs text-red-500 dark:text-red-400" role="alert">La fecha es requerida</p>
             }
           </div>
 
@@ -160,13 +160,13 @@ import { TransactionService } from '../../../core/services/transaction.service';
             <button
               type="button"
               (click)="cancelled.emit()"
-              class="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+              class="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              class="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               [disabled]="form.invalid"
             >
               {{ isEditing() ? 'Guardar cambios' : 'Agregar' }}

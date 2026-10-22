@@ -21,6 +21,12 @@ interface FilterOption {
   value: FilterType;
 }
 
+/** Last day of a 'YYYY-MM' month as 'YYYY-MM-DD'. */
+function lastDayOf(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return `${month}-${String(new Date(year, monthNumber, 0).getDate()).padStart(2, '0')}`;
+}
+
 /** Lowercases and strips accents so "medico" matches "Médico". */
 function normalize(text: string): string {
   return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -31,7 +37,7 @@ function normalize(text: string): string {
   imports: [DatePipe, MoneyPipe, TransactionFormComponent, SampleDataBannerComponent, RecurringPanelComponent, DataTransferPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <main class="max-w-5xl mx-auto px-4 py-8" [class.pb-24]="lastRemoved()" id="main-content">
+    <main class="max-w-5xl mx-auto px-4 py-8" [class.pb-24]="lastRemoved().length > 0" id="main-content">
       <div class="mb-6 flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Transacciones</h1>
@@ -103,6 +109,19 @@ function normalize(text: string): string {
 
       <div class="flex flex-wrap items-end gap-2 mb-6">
         <div>
+          <label for="month-filter" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Mes</label>
+          <select
+            id="month-filter"
+            (change)="setMonth($any($event.target).value)"
+            class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          >
+            <option value="" [selected]="!selectedMonth()">{{ selectedMonth() === null && (dateFrom() || dateTo()) ? 'Fechas elegidas' : 'Todos los meses' }}</option>
+            @for (month of months(); track month) {
+              <option [value]="month" [selected]="month === selectedMonth()">{{ month + '-01' | date:'MMMM y' }}</option>
+            }
+          </select>
+        </div>
+        <div>
           <label for="date-from" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Desde</label>
           <input
             id="date-from"
@@ -133,7 +152,42 @@ function normalize(text: string): string {
             Limpiar filtros
           </button>
         }
+        @if (filteredTransactions().length > 0 && !confirmingBulk()) {
+          <button
+            type="button"
+            (click)="confirmingBulk.set(true)"
+            class="ml-auto px-3 py-2 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+          >
+            {{ hasFilters() || activeFilter() !== 'all' ? 'Eliminar las ' + filteredTransactions().length + ' de la lista' : 'Eliminar todas' }}
+          </button>
+        }
       </div>
+
+      @if (confirmingBulk() && filteredTransactions().length > 0) {
+        @let count = filteredTransactions().length;
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">
+          <p>
+            ¿Eliminar {{ count === 1 ? 'el movimiento' : 'los ' + count + ' movimientos' }}
+            {{ hasFilters() || activeFilter() !== 'all' ? 'que coinciden con los filtros' : 'que tienes registrados' }}?
+          </p>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              (click)="confirmingBulk.set(false)"
+              class="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              (click)="removeFiltered()"
+              class="px-3 py-1.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-500 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+            >
+              Sí, eliminar {{ count }}
+            </button>
+          </div>
+        </div>
+      }
 
       <section aria-label="Lista de transacciones">
         <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
@@ -232,19 +286,21 @@ function normalize(text: string): string {
     </main>
 
     @if (lastRemoved(); as removed) {
-      <div
-        class="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-30 flex items-center justify-between gap-4 px-4 py-3 rounded-xl shadow-lg bg-gray-900 text-white text-sm dark:bg-gray-800 dark:border dark:border-gray-700"
-        role="status"
-      >
-        <span>Se eliminó «{{ removed.description }}»</span>
-        <button
-          type="button"
-          (click)="undoRemove()"
-          class="font-medium text-indigo-300 hover:text-indigo-200 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+      @if (removed.length > 0) {
+        <div
+          class="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-30 flex items-center justify-between gap-4 px-4 py-3 rounded-xl shadow-lg bg-gray-900 text-white text-sm dark:bg-gray-800 dark:border dark:border-gray-700"
+          role="status"
         >
-          Deshacer
-        </button>
-      </div>
+          <span>{{ removed.length === 1 ? 'Se eliminó «' + removed[0].description + '»' : 'Se eliminaron ' + removed.length + ' movimientos' }}</span>
+          <button
+            type="button"
+            (click)="undoRemove()"
+            class="font-medium text-indigo-300 hover:text-indigo-200 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+          >
+            Deshacer
+          </button>
+        </div>
+      }
     }
 
     @if (showForm()) {
@@ -261,8 +317,10 @@ export class TransactionsComponent {
   protected readonly accounts = inject(AccountService);
   private undoTimer: ReturnType<typeof setTimeout> | undefined;
 
-  /** Last deleted transaction, kept while the "Deshacer" toast is visible. */
-  protected readonly lastRemoved = signal<Transaction | null>(null);
+  /** Last deleted transactions, kept while the "Deshacer" toast is visible. */
+  protected readonly lastRemoved = signal<Transaction[]>([]);
+  /** Whether the "delete everything in the list" confirmation is showing. */
+  protected readonly confirmingBulk = signal(false);
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.undoTimer));
@@ -316,6 +374,18 @@ export class TransactionsComponent {
     return [...filtered].sort((a, b) => b.date.localeCompare(a.date));
   });
 
+  /** Months that have transactions, most recent first, as 'YYYY-MM'. */
+  protected readonly months = computed(() =>
+    [...new Set(this.transactionService.transactions().map(t => t.date.slice(0, 7)))].sort().reverse()
+  );
+
+  /** The month the date range covers exactly, or null for any other range. */
+  protected readonly selectedMonth = computed(() => {
+    const from = this.dateFrom();
+    if (!from.endsWith('-01') || this.dateTo() !== lastDayOf(from.slice(0, 7))) return null;
+    return from.slice(0, 7);
+  });
+
   protected readonly pageCount = computed(() =>
     Math.max(1, Math.ceil(this.filteredTransactions().length / PAGE_SIZE))
   );
@@ -333,6 +403,12 @@ export class TransactionsComponent {
     const page = this.currentPage();
     return this.filteredTransactions().slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   });
+
+  /** Sets the date range to a whole month, or clears it for ''. */
+  protected setMonth(month: string): void {
+    this.dateFrom.set(month ? `${month}-01` : '');
+    this.dateTo.set(month ? lastDayOf(month) : '');
+  }
 
   protected clearFilters(): void {
     this.searchTerm.set('');
@@ -378,17 +454,27 @@ export class TransactionsComponent {
   }
 
   protected removeTransaction(transaction: Transaction): void {
-    this.transactionService.remove(transaction.id);
-    this.lastRemoved.set(transaction);
+    this.removeAndOfferUndo([transaction]);
+  }
+
+  /** Deletes every transaction the filters show, across all pages. */
+  protected removeFiltered(): void {
+    this.removeAndOfferUndo(this.filteredTransactions());
+    this.confirmingBulk.set(false);
+  }
+
+  private removeAndOfferUndo(transactions: Transaction[]): void {
+    this.transactionService.removeMany(transactions.map(t => t.id));
+    this.lastRemoved.set(transactions);
     clearTimeout(this.undoTimer);
-    this.undoTimer = setTimeout(() => this.lastRemoved.set(null), UNDO_TIMEOUT_MS);
+    this.undoTimer = setTimeout(() => this.lastRemoved.set([]), UNDO_TIMEOUT_MS);
   }
 
   protected undoRemove(): void {
     const removed = this.lastRemoved();
-    if (!removed) return;
-    this.transactionService.restore(removed);
-    this.lastRemoved.set(null);
+    if (removed.length === 0) return;
+    this.transactionService.restore(...removed);
+    this.lastRemoved.set([]);
     clearTimeout(this.undoTimer);
   }
 }

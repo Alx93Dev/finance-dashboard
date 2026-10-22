@@ -345,4 +345,68 @@ describe('TransactionsComponent', () => {
       expect(root.textContent).toContain('Agregar primera transacción');
     });
   });
+
+  describe('month filter and bulk delete', () => {
+    function button(root: HTMLElement, label: string | RegExp): HTMLButtonElement | undefined {
+      return Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+        .find(b => (typeof label === 'string' ? b.textContent!.trim() === label : label.test(b.textContent!.trim())));
+    }
+
+    async function chooseMonth(fixture: { whenStable(): Promise<unknown> }, root: HTMLElement, month: string) {
+      const select = root.querySelector<HTMLSelectElement>('#month-filter')!;
+      select.value = month;
+      select.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+    }
+
+    it('should list the months with transactions and filter by one', async () => {
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+      const options = Array.from(root.querySelectorAll<HTMLOptionElement>('#month-filter option')).map(o => o.value);
+      expect(options).toEqual(['', '2025-01', '2024-12']);
+
+      await chooseMonth(fixture, root, '2025-01');
+      expect(root.querySelector<HTMLInputElement>('#date-from')!.value).toBe('2025-01-01');
+      expect(root.querySelector<HTMLInputElement>('#date-to')!.value).toBe('2025-01-31');
+      expect(descriptions(root)).toEqual(['Sueldo', 'Uber', 'Arriendo']);
+
+      await chooseMonth(fixture, root, '');
+      expect(descriptions(root)).toHaveLength(4);
+    });
+
+    it('should delete every transaction of the filtered month after confirming, and undo it', async () => {
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+      await chooseMonth(fixture, root, '2025-01');
+
+      button(root, 'Eliminar las 3 de la lista')!.click();
+      await fixture.whenStable();
+      expect(root.querySelector('[role="alert"]')!.textContent).toContain('los 3 movimientos que coinciden con los filtros');
+      button(root, 'Sí, eliminar 3')!.click();
+      await fixture.whenStable();
+
+      expect(JSON.parse(localStorage.getItem('transactions')!).map((t: Transaction) => t.id)).toEqual(['d']);
+      expect(root.querySelector('[role="status"]')!.textContent).toContain('Se eliminaron 3 movimientos');
+
+      button(root, 'Deshacer')!.click();
+      await fixture.whenStable();
+      expect(JSON.parse(localStorage.getItem('transactions')!)).toHaveLength(4);
+    });
+
+    it('should offer to delete everything without filters and keep data on cancel', async () => {
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+
+      button(root, 'Eliminar todas')!.click();
+      await fixture.whenStable();
+      expect(root.querySelector('[role="alert"]')!.textContent).toContain('que tienes registrados');
+      button(root, 'Cancelar')!.click();
+      await fixture.whenStable();
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+      expect(descriptions(root)).toHaveLength(4);
+    });
+  });
 });

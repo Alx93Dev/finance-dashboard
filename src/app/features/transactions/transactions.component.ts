@@ -11,6 +11,11 @@ interface FilterOption {
   value: FilterType;
 }
 
+/** Lowercases and strips accents so "medico" matches "Médico". */
+function normalize(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 @Component({
   selector: 'app-transactions',
   imports: [CurrencyPipe, DatePipe, TransactionFormComponent],
@@ -31,10 +36,10 @@ interface FilterOption {
         </button>
       </div>
 
-      <div class="flex gap-2 mb-6" role="group" aria-label="Filtrar transacciones">
+      <div class="flex gap-2 mb-4" role="group" aria-label="Filtrar transacciones">
         @for (option of filterOptions; track option.value) {
           <button
-            (click)="activeFilter.set(option.value)"
+            (click)="setTypeFilter(option.value)"
             [class]="activeFilter() === option.value
               ? 'px-4 py-2 rounded-xl text-sm font-medium bg-gray-900 text-white dark:bg-indigo-600'
               : 'px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'"
@@ -45,11 +50,36 @@ interface FilterOption {
         }
       </div>
 
+      <div class="flex flex-col sm:flex-row gap-2 mb-6">
+        <label for="search" class="sr-only">Buscar transacciones</label>
+        <input
+          id="search"
+          type="search"
+          placeholder="Buscar por descripción"
+          [value]="searchTerm()"
+          (input)="searchTerm.set($any($event.target).value)"
+          class="flex-1 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          autocomplete="off"
+        />
+        <label for="category-filter" class="sr-only">Filtrar por categoría</label>
+        <select
+          id="category-filter"
+          [value]="categoryFilter()"
+          (change)="categoryFilter.set($any($event.target).value)"
+          class="sm:w-56 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+        >
+          <option value="">Todas las categorías</option>
+          @for (category of categoryOptions(); track category.id) {
+            <option [value]="category.id" [selected]="category.id === categoryFilter()">{{ category.name }}</option>
+          }
+        </select>
+      </div>
+
       <section aria-label="Lista de transacciones">
         <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
           @if (filteredTransactions().length === 0) {
             <p class="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
-              No hay transacciones
+              {{ searchTerm() || categoryFilter() ? 'Ninguna transacción coincide con la búsqueda' : 'No hay transacciones' }}
             </p>
           } @else {
             <ul>
@@ -127,13 +157,35 @@ export class TransactionsComponent {
     { label: 'Gastos',   value: 'expense' },
   ];
 
+  protected readonly searchTerm = signal('');
+  protected readonly categoryFilter = signal('');
+
+  protected readonly categoryOptions = computed(() => {
+    const filter = this.activeFilter();
+    const categories = this.transactionService.categories();
+    return filter === 'all' ? categories : categories.filter(c => c.type === filter);
+  });
+
   protected readonly filteredTransactions = computed(() => {
     const filter = this.activeFilter();
-    const transactions = this.transactionService.transactions();
-    const filtered = filter === 'all' ? transactions : transactions.filter(t => t.type === filter);
+    const categoryId = this.categoryFilter();
+    const term = normalize(this.searchTerm().trim());
+    const filtered = this.transactionService.transactions().filter(t =>
+      (filter === 'all' || t.type === filter) &&
+      (!categoryId || t.categoryId === categoryId) &&
+      (!term || normalize(t.description).includes(term))
+    );
     // Most recent first; same-day transactions keep the order they were added in.
     return [...filtered].sort((a, b) => b.date.localeCompare(a.date));
   });
+
+  protected setTypeFilter(filter: FilterType): void {
+    this.activeFilter.set(filter);
+    // Drop a category that no longer matches the selected type.
+    if (!this.categoryOptions().some(c => c.id === this.categoryFilter())) {
+      this.categoryFilter.set('');
+    }
+  }
 
   protected openNewForm(): void {
     this.editingTransaction.set(null);

@@ -165,6 +165,16 @@ describe('TransactionService', () => {
       expect(stored()).toEqual(service.transactions());
     });
 
+    it('should move to the latest remaining month after clearing the sample data', () => {
+      const service = createService();
+      service.add({ description: 'Café', amount: 3000, categoryId: '3', date: '2025-06-01', type: 'expense', accountId: 'main' });
+      expect(service.selectedMonth()).toBe('2025-01');
+
+      service.clearSampleData();
+
+      expect(service.selectedMonth()).toBe('2025-06');
+    });
+
     it('should not treat an edited example as sample data', () => {
       const service = createService();
       const [first] = service.transactions();

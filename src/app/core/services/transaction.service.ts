@@ -162,6 +162,8 @@ export class TransactionService {
       this.storage.set(STORAGE_KEY, updated);
       return updated;
     });
+    // The examples are from January 2025; don't leave the user stuck there.
+    this.selectedMonth.set(this.latestMonth() ?? currentMonth());
   }
 
   /** Replaces every stored transaction, e.g. when restoring a backup. */

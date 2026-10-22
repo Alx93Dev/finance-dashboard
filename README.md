@@ -33,6 +33,8 @@ A personal finance tracker built with **Angular 21**, **Signals**, and **Tailwin
 | Chart.js | Data visualization |
 | localStorage | Client-side data persistence |
 | TypeScript 5 | Strict typing throughout |
+| Vitest | Unit tests |
+| Playwright | End-to-end tests in desktop and mobile Chrome |
 
 ---
 
@@ -64,6 +66,18 @@ pnpm start
 ```
 
 Open your browser at `http://localhost:4200`
+
+### Tests
+
+```bash
+# Unit tests
+pnpm test -- --watch=false
+
+# End-to-end tests (run against the production build)
+pnpm exec playwright install chromium   # first time only
+pnpm build
+pnpm e2e
+```
 
 ---
 

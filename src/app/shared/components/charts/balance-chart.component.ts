@@ -67,7 +67,7 @@ export class BalanceChartComponent {
 
   constructor() {
     effect(() => {
-      const points = balanceTrend(this.transactionService.valuedTransactions());
+      const points = balanceTrend(this.transactionService.dashboardTransactions());
       const selected = this.transactionService.selectedMonth();
       const colors = chartThemeColors(this.themeService.theme());
 

@@ -263,6 +263,32 @@ describe('TransactionService', () => {
       expect(service.previousMonthIncome()).toBe(0);
     });
 
+    it('should limit the dashboard figures to one account', () => {
+      localStorage.setItem(SEEDED_KEY, 'true');
+      localStorage.setItem('schema_version', '8');
+      localStorage.setItem('accounts', JSON.stringify([
+        { id: 'main', name: 'Cuenta principal', initialBalance: 0, currency: 'CLP' },
+        { id: 'card', name: 'Tarjeta', initialBalance: 0, currency: 'CLP' },
+      ]));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([
+        { id: 'a', description: 'Sueldo', amount: 900000, categoryId: '1', date: '2025-03-01', type: 'income', accountId: 'main' },
+        { id: 'b', description: 'Super', amount: 50000, categoryId: '3', date: '2025-03-05', type: 'expense', accountId: 'card' },
+        { id: 'c', description: 'Luz', amount: 20000, categoryId: '7', date: '2025-02-10', type: 'expense', accountId: 'card' },
+      ]));
+      const service = createService();
+      expect(service.monthExpenses()).toBe(50000);
+      expect(service.monthIncome()).toBe(900000);
+
+      service.dashboardAccount.set('card');
+      expect(service.monthIncome()).toBe(0);
+      expect(service.monthExpenses()).toBe(50000);
+      expect(service.previousMonthExpenses()).toBe(20000);
+      expect(service.dashboardTransactions().map(t => t.id)).toEqual(['b', 'c']);
+
+      service.dashboardAccount.set('gone');
+      expect(service.dashboardTransactions()).toHaveLength(3);
+    });
+
     it('should shift month keys by any number of months', () => {
       expect(shiftMonth('2025-11', 3)).toBe('2026-02');
       expect(shiftMonth('2025-03', -15)).toBe('2023-12');

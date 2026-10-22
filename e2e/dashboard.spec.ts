@@ -66,6 +66,22 @@ test('starts new transactions on the chosen main account', async ({ page }) => {
   await expect(page.getByRole('dialog').getByLabel('Cuenta').locator('option:checked')).toHaveText('Cuenta Corriente BCI');
 });
 
+test('limits the summary to the chosen account', async ({ page }) => {
+  await page.getByRole('link', { name: 'Go to Dashboard' }).click();
+  const accounts = page.getByRole('region', { name: 'Cuentas' });
+  await accounts.getByRole('button', { name: 'Agregar cuenta' }).click();
+  await accounts.getByLabel('Nombre de la cuenta').fill('Tarjeta');
+  await accounts.getByRole('button', { name: 'Crear cuenta' }).click();
+
+  const summary = page.getByRole('region', { name: 'Resumen financiero' });
+  await expect(summary).toContainText('$1.000.000');
+  await page.getByLabel('Cuenta', { exact: true }).selectOption({ label: 'Tarjeta' });
+  await expect(summary).not.toContainText('$1.000.000');
+  await expect(page.getByText('No hay movimientos en este mes.')).toBeVisible();
+  await page.getByLabel('Cuenta', { exact: true }).selectOption({ label: 'Todas las cuentas' });
+  await expect(summary).toContainText('$1.000.000');
+});
+
 test('shows the yearly report', async ({ page }) => {
   await page.getByRole('link', { name: 'Go to Reports' }).click();
   const years = page.getByRole('group', { name: 'Seleccionar año' });

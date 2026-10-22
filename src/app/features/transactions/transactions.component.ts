@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signa
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { TransactionService } from '../../core/services/transaction.service';
 import { TransactionFormComponent } from './transaction-form/transaction-form.component';
+import { SampleDataBannerComponent } from '../../shared/components/sample-data-banner/sample-data-banner.component';
 import { Transaction } from '../../core/models/transaction.model';
 
 const UNDO_TIMEOUT_MS = 5000;
@@ -20,7 +21,7 @@ function normalize(text: string): string {
 
 @Component({
   selector: 'app-transactions',
-  imports: [CurrencyPipe, DatePipe, TransactionFormComponent],
+  imports: [CurrencyPipe, DatePipe, TransactionFormComponent, SampleDataBannerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-5xl mx-auto px-4 py-8" [class.pb-24]="lastRemoved()" id="main-content">
@@ -37,6 +38,8 @@ function normalize(text: string): string {
           <span aria-hidden="true">+</span> Nueva
         </button>
       </div>
+
+      <app-sample-data-banner />
 
       <div class="flex gap-2 mb-4" role="group" aria-label="Filtrar transacciones">
         @for (option of filterOptions; track option.value) {
@@ -79,9 +82,20 @@ function normalize(text: string): string {
 
       <section aria-label="Lista de transacciones">
         <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-          @if (filteredTransactions().length === 0) {
+          @if (!hasTransactions()) {
+            <div class="py-16 px-6 text-center">
+              <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Aún no tienes transacciones.</p>
+              <button
+                type="button"
+                (click)="openNewForm()"
+                class="px-4 py-2 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+              >
+                Agregar primera transacción
+              </button>
+            </div>
+          } @else if (filteredTransactions().length === 0) {
             <p class="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
-              {{ searchTerm() || categoryFilter() ? 'Ninguna transacción coincide con la búsqueda' : 'No hay transacciones' }}
+              {{ searchTerm() || categoryFilter() ? 'Ninguna transacción coincide con la búsqueda' : 'No hay transacciones de este tipo' }}
             </p>
           } @else {
             <ul>
@@ -183,6 +197,7 @@ export class TransactionsComponent {
     { label: 'Gastos',   value: 'expense' },
   ];
 
+  protected readonly hasTransactions = computed(() => this.transactionService.transactions().length > 0);
   protected readonly searchTerm = signal('');
   protected readonly categoryFilter = signal('');
 

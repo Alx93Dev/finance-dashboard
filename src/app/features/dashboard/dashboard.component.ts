@@ -1,13 +1,15 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { TransactionService } from '../../core/services/transaction.service';
 import { SummaryCardComponent } from '../../shared/components/summary-card/summary-card.component';
 import { DonutChartComponent } from '../../shared/components/charts/donut-chart.component';
 import { BarChartComponent } from '../../shared/components/charts/bar-chart.component';
+import { SampleDataBannerComponent } from '../../shared/components/sample-data-banner/sample-data-banner.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [DatePipe, SummaryCardComponent, DonutChartComponent, BarChartComponent],
+  imports: [DatePipe, RouterLink, SampleDataBannerComponent, SummaryCardComponent, DonutChartComponent, BarChartComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-5xl mx-auto px-4 py-8" id="main-content">
@@ -41,6 +43,8 @@ import { BarChartComponent } from '../../shared/components/charts/bar-chart.comp
         </div>
       </div>
 
+      <app-sample-data-banner />
+
       <section aria-labelledby="summary-heading" class="mb-6">
         <h2 id="summary-heading" class="sr-only">Resumen financiero</h2>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -61,7 +65,14 @@ import { BarChartComponent } from '../../shared/components/charts/bar-chart.comp
           />
         </div>
         @if (tx.monthTransactions().length === 0) {
-          <p class="mt-3 text-sm text-gray-400 dark:text-gray-500">No hay movimientos en este mes.</p>
+          <p class="mt-3 text-sm text-gray-400 dark:text-gray-500">
+            @if (tx.transactions().length === 0) {
+              Aún no tienes transacciones.
+              <a routerLink="/transactions" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">Agrega la primera</a>
+            } @else {
+              No hay movimientos en este mes.
+            }
+          </p>
         }
       </section>
 

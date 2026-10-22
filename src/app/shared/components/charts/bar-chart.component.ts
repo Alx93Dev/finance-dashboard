@@ -17,6 +17,13 @@ const MONTH_LABELS: Record<string, string> = {
   '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dic',
 };
 
+/** Formats a 'YYYY-MM' key as a short label with the year, e.g. 'Ene 25'. */
+export function monthLabel(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-');
+  const name = MONTH_LABELS[month];
+  return name ? `${name} ${year.slice(-2)}` : yearMonth;
+}
+
 @Component({
   selector: 'app-bar-chart',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -54,10 +61,7 @@ export class BarChartComponent {
       const colors = chartThemeColors(this.themeService.theme());
 
       const sortedMonths = Object.keys(monthlyTotals).sort();
-      const labels = sortedMonths.map(m => {
-        const [, month] = m.split('-');
-        return MONTH_LABELS[month] ?? m;
-      });
+      const labels = sortedMonths.map(monthLabel);
       const incomeData  = sortedMonths.map(m => monthlyTotals[m].income);
       const expenseData = sortedMonths.map(m => monthlyTotals[m].expense);
 

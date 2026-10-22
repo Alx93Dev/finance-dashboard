@@ -130,8 +130,9 @@ export class TransactionsComponent {
   protected readonly filteredTransactions = computed(() => {
     const filter = this.activeFilter();
     const transactions = this.transactionService.transactions();
-    if (filter === 'all') return transactions;
-    return transactions.filter(t => t.type === filter);
+    const filtered = filter === 'all' ? transactions : transactions.filter(t => t.type === filter);
+    // Most recent first; same-day transactions keep the order they were added in.
+    return [...filtered].sort((a, b) => b.date.localeCompare(a.date));
   });
 
   protected openNewForm(): void {

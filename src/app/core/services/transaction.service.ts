@@ -34,6 +34,15 @@ export function shiftMonth(month: string, delta: number): string {
   return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/**
+ * Percentage change from `previous` to `current`, rounded to a whole number.
+ * Returns null when there is nothing to compare against (previous is 0).
+ */
+export function percentChange(current: number, previous: number): number | null {
+  if (previous === 0) return null;
+  return Math.round(((current - previous) / Math.abs(previous)) * 100);
+}
+
 function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -87,6 +96,28 @@ export class TransactionService {
   );
 
   readonly monthBalance = computed(() => this.monthIncome() - this.monthExpenses());
+
+  private readonly previousMonthTransactions = computed(() => {
+    const month = shiftMonth(this.selectedMonth(), -1);
+    return this.transactions().filter(t => t.date.startsWith(month));
+  });
+
+  readonly previousMonthIncome = computed(() =>
+    this.previousMonthTransactions()
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0)
+  );
+
+  readonly previousMonthExpenses = computed(() =>
+    this.previousMonthTransactions()
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0)
+  );
+
+  readonly previousMonthBalance = computed(() => this.previousMonthIncome() - this.previousMonthExpenses());
+
+  /** Whether the month before the selected one has any transactions to compare against. */
+  readonly hasPreviousMonth = computed(() => this.previousMonthTransactions().length > 0);
 
   constructor() {
     this.initializeSeedData();

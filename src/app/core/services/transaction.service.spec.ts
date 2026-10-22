@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Transaction } from '../models/transaction.model';
-import { TransactionService, shiftMonth } from './transaction.service';
+import { TransactionService, percentChange, shiftMonth } from './transaction.service';
 
 const STORAGE_KEY = 'transactions';
 const SEEDED_KEY = 'seeded_v3';
@@ -235,6 +235,24 @@ describe('TransactionService', () => {
       expect(service.selectedMonth()).toBe('2025-02');
     });
 
+    it('should compute the previous month totals', () => {
+      localStorage.setItem(SEEDED_KEY, 'true');
+      const service = createService();
+      service.add({ description: 'Sueldo',   amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income'  });
+      service.add({ description: 'Arriendo', amount: 400,  categoryId: '7', date: '2025-01-01', type: 'expense' });
+      service.add({ description: 'Sueldo',   amount: 1200, categoryId: '1', date: '2025-02-28', type: 'income'  });
+
+      service.selectedMonth.set('2025-02');
+      expect(service.hasPreviousMonth()).toBe(true);
+      expect(service.previousMonthIncome()).toBe(1000);
+      expect(service.previousMonthExpenses()).toBe(400);
+      expect(service.previousMonthBalance()).toBe(600);
+
+      service.selectedMonth.set('2025-01');
+      expect(service.hasPreviousMonth()).toBe(false);
+      expect(service.previousMonthIncome()).toBe(0);
+    });
+
     it('should shift month keys by any number of months', () => {
       expect(shiftMonth('2025-11', 3)).toBe('2026-02');
       expect(shiftMonth('2025-03', -15)).toBe('2023-12');
@@ -246,5 +264,22 @@ describe('TransactionService', () => {
 
     expect(service.getCategoryById('3')?.name).toBe('Alimentación');
     expect(service.getCategoryById('nope')).toBeUndefined();
+  });
+});
+
+describe('percentChange', () => {
+  it('should return the rounded percentage change', () => {
+    expect(percentChange(1120, 1000)).toBe(12);
+    expect(percentChange(500, 1000)).toBe(-50);
+    expect(percentChange(1000, 1000)).toBe(0);
+  });
+
+  it('should return null when there is no previous value', () => {
+    expect(percentChange(500, 0)).toBeNull();
+  });
+
+  it('should measure against the size of a negative previous value', () => {
+    expect(percentChange(-50, -100)).toBe(50);
+    expect(percentChange(100, -100)).toBe(200);
   });
 });

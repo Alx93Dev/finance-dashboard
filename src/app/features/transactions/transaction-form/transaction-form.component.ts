@@ -7,6 +7,7 @@ import {
   OnInit,
   output,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Transaction } from '../../../core/models/transaction.model';
 import { TransactionService } from '../../../core/services/transaction.service';
@@ -187,12 +188,6 @@ export class TransactionFormComponent implements OnInit {
 
   protected readonly isEditing = computed(() => this.editingTransaction() !== null);
 
-  protected readonly filteredCategories = computed(() => {
-    const type = this.form.get('type')?.value as 'income' | 'expense' | null;
-    if (!type) return this.transactionService.categories();
-    return this.transactionService.categories().filter(c => c.type === type);
-  });
-
   protected readonly form = this.fb.nonNullable.group({
     type:        ['expense' as 'income' | 'expense', Validators.required],
     description: ['', [Validators.required, Validators.minLength(1)]],
@@ -200,6 +195,14 @@ export class TransactionFormComponent implements OnInit {
     categoryId:  ['', Validators.required],
     date:        ['', Validators.required],
   });
+
+  private readonly selectedType = toSignal(this.form.controls.type.valueChanges, {
+    initialValue: this.form.controls.type.value,
+  });
+
+  protected readonly filteredCategories = computed(() =>
+    this.transactionService.categories().filter(c => c.type === this.selectedType())
+  );
 
   ngOnInit(): void {
     const transaction = this.editingTransaction();

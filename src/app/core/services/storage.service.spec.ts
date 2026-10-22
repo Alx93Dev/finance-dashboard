@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { SCHEMA_VERSION_KEY, StorageService } from './storage.service';
 import { MIGRATIONS, Migration } from './storage-migrations';
+import { DEFAULT_CATEGORIES } from '../models/category.model';
 
 function createService(): StorageService {
   return TestBed.inject(StorageService);
@@ -102,6 +103,24 @@ describe('StorageService', () => {
       ]));
 
       expect(createService().get('budgets', null)).toEqual([{ categoryId: '3', amount: 200000 }]);
+    });
+  });
+
+  describe('migration v3', () => {
+    it('should store the default categories', () => {
+      expect(createService().get('categories', null)).toEqual(DEFAULT_CATEGORIES);
+    });
+
+    it('should keep valid stored categories', () => {
+      const custom = [
+        { id: 'a', name: 'Sueldo', type: 'income', color: '#10b981' },
+        { id: 'b', name: 'Mascotas', type: 'expense', color: '#ec4899' },
+        { id: 'c', name: 'Sin tipo', color: '#000' },
+      ];
+      localStorage.setItem(SCHEMA_VERSION_KEY, '2');
+      localStorage.setItem('categories', JSON.stringify(custom));
+
+      expect(createService().get('categories', null)).toEqual(custom.slice(0, 2));
     });
   });
 });

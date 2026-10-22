@@ -75,7 +75,7 @@ export class DataTransferPanelComponent {
 
   exportBackup(): void {
     const backup = toBackup(
-      { transactions: this.tx.transactions(), budgets: this.budgets.budgets() },
+      { transactions: this.tx.transactions(), budgets: this.budgets.budgets(), categories: this.tx.categories() },
       this.storage.schemaVersion(),
     );
     download(`respaldo-finanzas-${today()}.json`, JSON.stringify(backup, null, 2), 'application/json');
@@ -102,6 +102,7 @@ export class DataTransferPanelComponent {
   confirmImport(): void {
     const backup = this.pendingImport();
     if (!backup) return;
+    if (backup.categories) this.tx.replaceCategories(backup.categories);
     this.tx.replaceAll(backup.transactions);
     if (backup.budgets) this.budgets.replaceAll(backup.budgets);
     this.pendingImport.set(null);

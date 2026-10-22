@@ -1,4 +1,5 @@
 import { Budget } from '../models/budget.model';
+import { Category, DEFAULT_CATEGORIES } from '../models/category.model';
 import { Transaction } from '../models/transaction.model';
 
 /** Minimal storage surface a migration needs; keeps migrations independent of Angular DI. */
@@ -65,6 +66,24 @@ export const MIGRATIONS: Migration[] = [
             !!b && typeof b.categoryId === 'string' && Number.isFinite(b.amount) && b.amount > 0)
         : [];
       storage.set('budgets', budgets);
+    },
+  },
+  {
+    version: 3,
+    description: 'Store categories so they can be edited',
+    migrate(storage) {
+      const raw = storage.get<unknown>('categories', null);
+      const categories: Category[] = Array.isArray(raw)
+        ? raw.filter((c): c is Category =>
+            !!c &&
+            typeof c.id === 'string' &&
+            typeof c.name === 'string' &&
+            typeof c.color === 'string' &&
+            (c.type === 'income' || c.type === 'expense'))
+        : [];
+      const hasBothTypes =
+        categories.some(c => c.type === 'income') && categories.some(c => c.type === 'expense');
+      storage.set('categories', hasBothTypes ? categories : DEFAULT_CATEGORIES);
     },
   },
 ];

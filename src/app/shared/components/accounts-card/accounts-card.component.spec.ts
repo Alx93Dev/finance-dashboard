@@ -40,18 +40,31 @@ describe('AccountsCardComponent', () => {
   it('should add an account with an initial balance and show the total', async () => {
     const { fixture, root, service } = await render();
 
-    button(root, 'Editar').click();
-    await fixture.whenStable();
     button(root, 'Agregar cuenta').click();
     await fixture.whenStable();
-    inputs(root, 'account-name-')[1].value = ' Efectivo ';
-    inputs(root, 'account-balance-')[1].value = '30000';
-    button(root, 'Guardar').click();
+    expect(document.activeElement).toBe(root.querySelector('#new-account-name'));
+    expect(inputs(root, 'account-name-')).toHaveLength(0);
+    root.querySelector<HTMLInputElement>('#new-account-name')!.value = ' Efectivo ';
+    root.querySelector<HTMLInputElement>('#new-account-balance')!.value = '30000';
+    button(root, 'Crear cuenta').click();
     await fixture.whenStable();
 
-    expect(service.accounts().map(a => [a.name, a.initialBalance])).toEqual([['Cuenta principal', 0], ['Efectivo', 30000]]);
+    expect(service.accounts().map(a => [a.name, a.initialBalance, a.currency])).toEqual([['Cuenta principal', 0, 'CLP'], ['Efectivo', 30000, 'CLP']]);
     expect(root.textContent).toContain('Total');
     expect(root.textContent).toMatch(/\$530[.,]000/);
+  });
+
+  it('should not create an account on cancel', async () => {
+    const { fixture, root, service } = await render();
+
+    button(root, 'Agregar cuenta').click();
+    await fixture.whenStable();
+    root.querySelector<HTMLInputElement>('#new-account-name')!.value = 'Tarjeta';
+    button(root, 'Cancelar').click();
+    await fixture.whenStable();
+
+    expect(service.accounts().map(a => a.name)).toEqual(['Cuenta principal']);
+    expect(button(root, 'Agregar cuenta')).toBeDefined();
   });
 
   it('should warn before moving a deleted account\'s transactions to the main one', async () => {
@@ -135,18 +148,20 @@ describe('AccountsCardComponent', () => {
     expect(service.transfers()).toEqual([]);
   });
 
-  it('should add an account straight from the card', async () => {
+  it('should edit existing accounts without offering new ones', async () => {
     const { fixture, root, service } = await render();
-
-    button(root, 'Agregar cuenta').click();
+    service.add({ name: 'Efectivo', initialBalance: 0, currency: 'CLP' });
     await fixture.whenStable();
+
+    button(root, 'Editar').click();
+    await fixture.whenStable();
+    expect(button(root, 'Agregar cuenta')).toBeUndefined();
     const names = inputs(root, 'account-name-');
     expect(names).toHaveLength(2);
-    expect(document.activeElement).toBe(names[1]);
-    names[1].value = 'Tarjeta';
+    names[1].value = 'Billetera';
     button(root, 'Guardar').click();
     await fixture.whenStable();
 
-    expect(service.accounts().map(a => a.name)).toEqual(['Cuenta principal', 'Tarjeta']);
+    expect(service.accounts().map(a => a.name)).toEqual(['Cuenta principal', 'Billetera']);
   });
 });

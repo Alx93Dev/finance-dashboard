@@ -28,10 +28,10 @@ test('tracks balances and transfers between accounts', async ({ page }) => {
   await expect(accounts.getByRole('listitem').filter({ hasText: 'Cuenta principal' })).toContainText('$450.000');
 
   await accounts.getByRole('button', { name: 'Agregar cuenta' }).click();
-  await expect(accounts.getByLabel('Nombre de la cuenta').last()).toBeFocused();
-  await accounts.getByLabel('Nombre de la cuenta').last().fill('Efectivo');
-  await accounts.getByLabel('Saldo inicial').last().fill('20000');
-  await accounts.getByRole('button', { name: 'Guardar' }).click();
+  await expect(accounts.getByLabel('Nombre de la cuenta')).toBeFocused();
+  await accounts.getByLabel('Nombre de la cuenta').fill('Efectivo');
+  await accounts.getByLabel('Saldo inicial').fill('20000');
+  await accounts.getByRole('button', { name: 'Crear cuenta' }).click();
 
   const balance = (name: string) => accounts.getByRole('list', { name: 'Cuentas' }).getByRole('listitem').filter({ hasText: name });
   await expect(balance('Efectivo')).toContainText('$20.000');

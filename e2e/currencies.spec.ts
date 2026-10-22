@@ -16,10 +16,10 @@ test.beforeEach(async ({ page }) => {
 test('keeps a dollar account in dollars and totals in pesos', async ({ page }) => {
   const accounts = page.getByRole('region', { name: 'Cuentas' });
   await accounts.getByRole('button', { name: 'Agregar cuenta' }).click();
-  await accounts.getByLabel('Nombre de la cuenta').last().fill('Freelance USD');
-  await accounts.getByLabel('Saldo inicial').last().fill('100');
-  await accounts.getByLabel('Moneda').last().selectOption('USD');
-  await accounts.getByRole('button', { name: 'Guardar' }).click();
+  await accounts.getByLabel('Nombre de la cuenta').fill('Freelance USD');
+  await accounts.getByLabel('Saldo inicial').fill('100');
+  await accounts.getByLabel('Moneda').selectOption('USD');
+  await accounts.getByRole('button', { name: 'Crear cuenta' }).click();
 
   const balance = (name: string) => accounts.getByRole('list', { name: 'Cuentas' }).getByRole('listitem').filter({ hasText: name });
   await expect(balance('Freelance USD')).toContainText('US$100');
@@ -47,10 +47,10 @@ test('keeps a dollar account in dollars and totals in pesos', async ({ page }) =
 test('uses values typed by hand', async ({ page }) => {
   const accounts = page.getByRole('region', { name: 'Cuentas' });
   await accounts.getByRole('button', { name: 'Agregar cuenta' }).click();
-  await accounts.getByLabel('Nombre de la cuenta').last().fill('Depósito UF');
-  await accounts.getByLabel('Saldo inicial').last().fill('2');
-  await accounts.getByLabel('Moneda').last().selectOption('UF');
-  await accounts.getByRole('button', { name: 'Guardar' }).click();
+  await accounts.getByLabel('Nombre de la cuenta').fill('Depósito UF');
+  await accounts.getByLabel('Saldo inicial').fill('2');
+  await accounts.getByLabel('Moneda').selectOption('UF');
+  await accounts.getByRole('button', { name: 'Crear cuenta' }).click();
 
   const rates = accounts.getByRole('group', { name: 'Tipo de cambio' });
   await rates.getByRole('button', { name: 'Escribir a mano' }).click();

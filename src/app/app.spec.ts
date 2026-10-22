@@ -28,7 +28,7 @@ describe('App', () => {
     expect(compiled.querySelector('router-outlet')).not.toBeNull();
   });
 
-  it('should render nav links to the dashboard, transactions and categories', async () => {
+  it('should render nav links to the dashboard, transactions, categories and reports', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
@@ -36,6 +36,6 @@ describe('App', () => {
     const nav = compiled.querySelector('nav[aria-label="Main navigation"]');
     expect(nav).not.toBeNull();
     const hrefs = Array.from(nav!.querySelectorAll('ul a')).map(a => a.getAttribute('href'));
-    expect(hrefs).toEqual(['/', '/transactions', '/categories']);
+    expect(hrefs).toEqual(['/', '/transactions', '/categories', '/reports']);
   });
 });

@@ -23,6 +23,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'reports',
+    loadComponent: () =>
+      import('./features/reports/reports.component').then(
+        m => m.ReportsComponent
+      ),
+  },
+  {
     path: '**',
     redirectTo: '',
   },

@@ -6,6 +6,8 @@ interface NavLink {
   path: string;
   label: string;
   ariaLabel: string;
+  /** SVG path (20×20 viewBox) shown instead of the label on narrow screens. */
+  icon: string;
 }
 
 @Component({
@@ -34,10 +36,13 @@ interface NavLink {
                   [routerLink]="link.path"
                   routerLinkActive="bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
                   [routerLinkActiveOptions]="{ exact: link.path === '/' }"
-                  class="px-2 sm:px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                  class="flex items-center px-2.5 sm:px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                   [attr.aria-label]="link.ariaLabel"
                 >
-                  {{ link.label }}
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 sm:hidden" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" clip-rule="evenodd" [attr.d]="link.icon" />
+                  </svg>
+                  <span class="hidden sm:inline">{{ link.label }}</span>
                 </a>
               </li>
             }
@@ -70,8 +75,9 @@ export class NavComponent {
   protected readonly isDark = computed(() => this.theme.theme() === 'dark');
 
   protected readonly navLinks: NavLink[] = [
-    { path: '/',             label: 'Dashboard',    ariaLabel: 'Go to Dashboard' },
-    { path: '/transactions', label: 'Transacciones', ariaLabel: 'Go to Transactions' },
-    { path: '/categories',   label: 'Categorías',    ariaLabel: 'Go to Categories' },
+    { path: '/',             label: 'Dashboard',     ariaLabel: 'Go to Dashboard',    icon: 'M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z' },
+    { path: '/transactions', label: 'Transacciones', ariaLabel: 'Go to Transactions', icon: 'M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z' },
+    { path: '/categories',   label: 'Categorías',    ariaLabel: 'Go to Categories',   icon: 'M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z' },
+    { path: '/reports',      label: 'Reportes',      ariaLabel: 'Go to Reports',      icon: 'M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z' },
   ];
 }

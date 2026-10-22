@@ -69,6 +69,35 @@ describe('StatementImportComponent', () => {
     expect(root.textContent).toContain('0 movimientos nuevos');
   });
 
+  it('should use the category column and create the categories that are missing', async () => {
+    const { fixture, root } = await render([
+      'Fecha;Descripción;Categoría;Cargo;Abono',
+      '10/03/2025;Supermercado;alimentacion;20.000;',
+      '11/03/2025;Pago Defontana;Sueldo;;900.000',
+      '12/03/2025;Transfer a Juan;Transferencia;5.000;',
+      '13/03/2025;Transfer de Juan;Transferencia;;5.000',
+      '14/03/2025;Algo raro;;1.000;',
+    ].join('\n'));
+    expect(root.querySelector<HTMLSelectElement>('#statement-category')!.value).toBe('2');
+    expect(root.textContent).toContain('Gastos sin categoría');
+    expect(root.textContent).toContain('Se crearán estas categorías: Transferencia (gasto), Transferencia (ingreso).');
+
+    Array.from(root.querySelectorAll('button')).find(b => b.textContent!.includes('Importar'))!.click();
+    await fixture.whenStable();
+
+    const service = TestBed.inject(TransactionService);
+    const categoryOf = (description: string) => {
+      const t = service.transactions().find(t => t.description === description)!;
+      return service.getCategoryById(t.categoryId)!;
+    };
+    expect(categoryOf('Supermercado')).toMatchObject({ id: '3', name: 'Alimentación' });
+    expect(categoryOf('Pago Defontana')).toMatchObject({ id: '1' });
+    expect(categoryOf('Transfer a Juan')).toMatchObject({ name: 'Transferencia', type: 'expense' });
+    expect(categoryOf('Transfer de Juan')).toMatchObject({ name: 'Transferencia', type: 'income' });
+    expect(categoryOf('Algo raro')).toMatchObject({ id: '8' });
+    expect(service.categories().filter(c => c.name === 'Transferencia')).toHaveLength(2);
+  });
+
   it('should explain an empty file', async () => {
     const { root } = await render('');
     expect(root.querySelector('[role="alert"]')!.textContent).toContain('no tiene filas');

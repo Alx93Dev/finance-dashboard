@@ -10,6 +10,8 @@ export interface ColumnMapping {
   debit: number;
   /** Money in, as a positive number. */
   credit: number;
+  /** Category name; rows without one use the category picked for all. */
+  category?: number;
 }
 
 export interface StatementRow {
@@ -17,6 +19,8 @@ export interface StatementRow {
   description: string;
   amount: number;
   type: Transaction['type'];
+  /** Category name from the file, when it has one. */
+  category?: string;
 }
 
 export interface ParsedStatement {
@@ -70,7 +74,8 @@ export function parseCsv(text: string): string[][] {
   return rows.filter(r => r.some(cell => cell !== ''));
 }
 
-function normalize(text: string): string {
+/** Lowercase without accents, for comparing names. */
+export function normalize(text: string): string {
   return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
@@ -84,6 +89,7 @@ export function detectColumns(header: string[]): ColumnMapping {
     amount: find('monto', 'importe'),
     debit: find('cargo', 'debito', 'giro', 'egreso'),
     credit: find('abono', 'credito', 'deposito', 'ingreso'),
+    category: find('categoria'),
   };
 }
 
@@ -160,12 +166,15 @@ export function readStatement(rows: string[][], mapping: ColumnMapping): ParsedS
       skipped++;
       continue;
     }
-    result.push({
+    const parsed: StatementRow = {
       date,
       description: cell(row, mapping.description) || 'Movimiento importado',
       amount: Math.round(Math.abs(signed)),
       type: signed > 0 ? 'income' : 'expense',
-    });
+    };
+    const category = cell(row, mapping.category ?? NO_COLUMN).trim();
+    if (category) parsed.category = category;
+    result.push(parsed);
   }
   return { rows: result, skipped };
 }

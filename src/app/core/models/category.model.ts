@@ -7,6 +7,15 @@ export interface Category {
   color: string;
 }
 
+/** Colors offered for new categories, in order. */
+export const CATEGORY_PALETTE = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#84cc16', '#6b7280'];
+
+/** First palette color no category uses yet, or the first one when all are taken. */
+export function unusedColor(categories: Category[]): string {
+  const used = new Set(categories.map(c => c.color.toLowerCase()));
+  return CATEGORY_PALETTE.find(color => !used.has(color)) ?? CATEGORY_PALETTE[0];
+}
+
 export const DEFAULT_CATEGORIES: Category[] = [
   { id: '1', name: 'Sueldo',          type: 'income',  color: '#10b981' },
   { id: '2', name: 'Freelance',       type: 'income',  color: '#3b82f6' },

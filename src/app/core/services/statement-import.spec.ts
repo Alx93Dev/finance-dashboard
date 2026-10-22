@@ -28,10 +28,10 @@ describe('parseCsv', () => {
 describe('detectColumns', () => {
   it('should recognize common Chilean bank headers', () => {
     expect(detectColumns(['Fecha', 'N° Documento', 'Descripción', 'Cargos ($)', 'Abonos ($)', 'Saldo'])).toEqual({
-      date: 0, description: 2, amount: NO_COLUMN, debit: 3, credit: 4,
+      date: 0, description: 2, amount: NO_COLUMN, debit: 3, credit: 4, category: NO_COLUMN,
     });
     expect(detectColumns(['FECHA', 'GLOSA', 'MONTO'])).toEqual({
-      date: 0, description: 1, amount: 2, debit: NO_COLUMN, credit: NO_COLUMN,
+      date: 0, description: 1, amount: 2, debit: NO_COLUMN, credit: NO_COLUMN, category: NO_COLUMN,
     });
   });
 

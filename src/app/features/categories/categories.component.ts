@@ -2,10 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { TransactionService } from '../../core/services/transaction.service';
 import { BudgetService } from '../../core/services/budget.service';
 import { RecurringService } from '../../core/services/recurring.service';
-import { Category, CategoryType } from '../../core/models/category.model';
+import { Category, CategoryType, unusedColor } from '../../core/models/category.model';
 
 /** Colors offered to new categories, in order, skipping ones already in use. */
-const PALETTE = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#84cc16', '#6b7280'];
 
 interface Group {
   type: CategoryType;
@@ -137,10 +136,7 @@ export class CategoriesComponent {
     ];
   });
 
-  protected readonly nextColor = computed(() => {
-    const used = new Set(this.tx.categories().map(c => c.color.toLowerCase()));
-    return PALETTE.find(color => !used.has(color)) ?? PALETTE[0];
-  });
+  protected readonly nextColor = computed(() => unusedColor(this.tx.categories()));
 
   protected usageLabel(category: Category): string {
     const usage = this.tx.categoryUsage(category.id);

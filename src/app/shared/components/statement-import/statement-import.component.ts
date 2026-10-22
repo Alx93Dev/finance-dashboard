@@ -3,15 +3,20 @@ import { DatePipe } from '@angular/common';
 import { MoneyPipe } from '../../pipes/money.pipe';
 import { AccountService } from '../../../core/services/account.service';
 import { TransactionService } from '../../../core/services/transaction.service';
+import { Category, CategoryType, unusedColor } from '../../../core/models/category.model';
 import {
   ColumnMapping,
   NO_COLUMN,
+  StatementRow,
   detectColumns,
   findHeaderRow,
   isSameMovement,
+  normalize,
   parseCsv,
   readStatement,
 } from '../../../core/services/statement-import';
+
+const categoryKey = (type: CategoryType, name: string) => `${type}:${normalize(name).replace(/\s+/g, ' ').trim()}`;
 
 const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600';
 const SELECT = 'w-full px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100';
@@ -48,6 +53,15 @@ type AmountMode = 'signed' | 'split';
               <option [value]="noColumn" [selected]="mapping().description === noColumn">(ninguna)</option>
               @for (name of header(); track $index) {
                 <option [value]="$index" [selected]="$index === mapping().description">{{ name || 'Columna ' + ($index + 1) }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label for="statement-category" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Categoría</label>
+            <select id="statement-category" [class]="selectClass" (change)="setColumn('category', $event)">
+              <option [value]="noColumn" [selected]="mapping().category === noColumn">(ninguna)</option>
+              @for (name of header(); track $index) {
+                <option [value]="$index" [selected]="$index === mapping().category">{{ name || 'Columna ' + ($index + 1) }}</option>
               }
             </select>
           </div>
@@ -98,7 +112,7 @@ type AmountMode = 'signed' | 'split';
             </div>
           }
           <div>
-            <label for="statement-expense-category" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Categoría de los gastos</label>
+            <label for="statement-expense-category" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ hasCategoryColumn() ? 'Gastos sin categoría' : 'Categoría de los gastos' }}</label>
             <select id="statement-expense-category" [class]="selectClass" (change)="expenseCategory.set($any($event.target).value)">
               @for (category of expenseCategories(); track category.id) {
                 <option [value]="category.id" [selected]="category.id === expenseCategory()">{{ category.name }}</option>
@@ -106,7 +120,7 @@ type AmountMode = 'signed' | 'split';
             </select>
           </div>
           <div>
-            <label for="statement-income-category" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Categoría de los ingresos</label>
+            <label for="statement-income-category" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ hasCategoryColumn() ? 'Ingresos sin categoría' : 'Categoría de los ingresos' }}</label>
             <select id="statement-income-category" [class]="selectClass" (change)="incomeCategory.set($any($event.target).value)">
               @for (category of incomeCategories(); track category.id) {
                 <option [value]="category.id" [selected]="category.id === incomeCategory()">{{ category.name }}</option>
@@ -120,6 +134,9 @@ type AmountMode = 'signed' | 'split';
           @if (duplicates() > 0) { · {{ duplicates() }} {{ duplicates() === 1 ? 'ya estaba registrado' : 'ya estaban registrados' }} }
           @if (statement().skipped > 0) { · {{ statement().skipped }} {{ statement().skipped === 1 ? 'fila no se pudo leer' : 'filas no se pudieron leer' }} }
         </p>
+        @if (missingCategories().length > 0) {
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Se crearán estas categorías: {{ missingCategoryNames() }}.</p>
+        }
 
         @if (newRows().length > 0) {
           <ul class="mt-2 divide-y divide-gray-100 dark:divide-gray-800 text-sm" aria-label="Vista previa">
@@ -127,6 +144,7 @@ type AmountMode = 'signed' | 'split';
               <li class="flex items-baseline justify-between gap-3 py-1.5">
                 <span class="min-w-0 truncate text-gray-700 dark:text-gray-300">
                   <span class="text-gray-400 dark:text-gray-500 tabular-nums">{{ row.date | date:'dd/MM/yy' }}</span> {{ row.description }}
+                  @if (row.category) { <span class="text-xs text-gray-400 dark:text-gray-500">· {{ row.category }}</span> }
                 </span>
                 <span class="shrink-0 whitespace-nowrap tabular-nums font-medium" [class]="row.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'">
                   {{ row.type === 'income' ? '+' : '-' }}{{ row.amount | money:(accounts.getById(accountId())?.currency ?? 'CLP') }}
@@ -171,7 +189,8 @@ export class StatementImportComponent {
   });
   protected readonly header = computed(() => this.table().header);
 
-  protected readonly mapping = signal<ColumnMapping>({ date: 0, description: NO_COLUMN, amount: NO_COLUMN, debit: NO_COLUMN, credit: NO_COLUMN });
+  protected readonly mapping = signal<ColumnMapping>({ date: 0, description: NO_COLUMN, amount: NO_COLUMN, debit: NO_COLUMN, credit: NO_COLUMN, category: NO_COLUMN });
+  protected readonly hasCategoryColumn = computed(() => (this.mapping().category ?? NO_COLUMN) !== NO_COLUMN);
   protected readonly mode = signal<AmountMode>('signed');
   protected readonly accountId = signal(this.accounts.defaultId());
 
@@ -198,6 +217,21 @@ export class StatementImportComponent {
   protected readonly newRows = computed(() => this.split().fresh);
   protected readonly duplicates = computed(() => this.split().duplicates);
 
+  /** Categories named in the file that don't exist yet for that type; importing creates them. */
+  protected readonly missingCategories = computed(() => {
+    const known = new Set(this.tx.categories().map(c => categoryKey(c.type, c.name)));
+    const missing = new Map<string, Omit<Category, 'id' | 'color'>>();
+    for (const row of this.newRows()) {
+      if (!row.category) continue;
+      const key = categoryKey(row.type, row.category);
+      if (!known.has(key) && !missing.has(key)) missing.set(key, { name: row.category, type: row.type });
+    }
+    return [...missing.values()];
+  });
+  protected readonly missingCategoryNames = computed(() =>
+    this.missingCategories().map(c => `${c.name} (${c.type === 'income' ? 'ingreso' : 'gasto'})`).join(', ')
+  );
+
   constructor() {
     // Start from the columns we can recognize every time a new file arrives.
     effect(() => {
@@ -212,6 +246,7 @@ export class StatementImportComponent {
         amount: fallback(detected.amount, Math.min(1, header.length - 1)),
         debit: fallback(detected.debit, 0),
         credit: fallback(detected.credit, 0),
+        category: detected.category,
       });
     });
   }
@@ -226,14 +261,23 @@ export class StatementImportComponent {
   }
 
   protected import(): void {
+    for (const category of this.missingCategories()) {
+      this.tx.addCategory({ ...category, color: unusedColor(this.tx.categories()) });
+    }
+    const ids = new Map(this.tx.categories().map(c => [categoryKey(c.type, c.name), c.id]));
     const rows = this.newRows();
-    for (const row of rows) {
+    for (const { category, ...row } of rows) {
       this.tx.add({
         ...row,
-        categoryId: row.type === 'income' ? this.incomeCategory() : this.expenseCategory(),
+        categoryId: this.categoryFor(row.type, category, ids),
         accountId: this.accountId(),
       });
     }
     this.imported.emit(rows.length);
+  }
+
+  private categoryFor(type: CategoryType, name: StatementRow['category'], ids: Map<string, string>): string {
+    const fallback = type === 'income' ? this.incomeCategory() : this.expenseCategory();
+    return (name && ids.get(categoryKey(type, name))) || fallback;
   }
 }

@@ -162,11 +162,13 @@ export class TransactionService {
     });
   }
 
-  /** Puts back a previously removed transaction, keeping its id. */
-  restore(transaction: Transaction): void {
+  /** Puts back previously removed transactions, keeping their ids. */
+  restore(...transactions: Transaction[]): void {
     this.transactions.update(current => {
-      if (current.some(t => t.id === transaction.id)) return current;
-      const updated = [...current, transaction];
+      const ids = new Set(current.map(t => t.id));
+      const missing = transactions.filter(t => !ids.has(t.id));
+      if (missing.length === 0) return current;
+      const updated = [...current, ...missing];
       this.storage.set(STORAGE_KEY, updated);
       return updated;
     });
@@ -191,8 +193,13 @@ export class TransactionService {
   }
 
   remove(id: string): void {
+    this.removeMany([id]);
+  }
+
+  removeMany(ids: string[]): void {
+    const gone = new Set(ids);
     this.transactions.update(current => {
-      const updated = current.filter(t => t.id !== id);
+      const updated = current.filter(t => !gone.has(t.id));
       this.storage.set(STORAGE_KEY, updated);
       return updated;
     });

@@ -104,6 +104,26 @@ describe('TransactionService', () => {
       expect(stored()).toEqual([b]);
     });
 
+    it('should restore a removed transaction with its original id', () => {
+      service.add({ description: 'A', amount: 1, categoryId: '8', date: '2025-02-01', type: 'expense' });
+      const [a] = service.transactions();
+      service.remove(a.id);
+
+      service.restore(a);
+
+      expect(service.transactions()).toEqual([a]);
+      expect(stored()).toEqual([a]);
+    });
+
+    it('should not duplicate a transaction that is already present', () => {
+      service.add({ description: 'A', amount: 1, categoryId: '8', date: '2025-02-01', type: 'expense' });
+      const [a] = service.transactions();
+
+      service.restore(a);
+
+      expect(service.transactions()).toEqual([a]);
+    });
+
     it('should compute totals and balance', () => {
       service.add({ description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-02-28', type: 'income' });
       service.add({ description: 'Freelance', amount: 500, categoryId: '2', date: '2025-02-15', type: 'income' });

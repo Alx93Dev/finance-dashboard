@@ -122,4 +122,66 @@ describe('TransactionsComponent', () => {
       expect(root.textContent).toContain('Ninguna transacción coincide con la búsqueda');
     });
   });
+
+  describe('undo delete', () => {
+    function deleteButton(root: HTMLElement, description: string): HTMLButtonElement {
+      return root.querySelector<HTMLButtonElement>(`button[aria-label="Eliminar ${description}"]`)!;
+    }
+
+    function undoButton(root: HTMLElement): HTMLButtonElement | undefined {
+      return Array.from(root.querySelectorAll<HTMLButtonElement>('[role="status"] button'))
+        .find(button => button.textContent!.trim() === 'Deshacer');
+    }
+
+    afterEach(() => vi.useRealTimers());
+
+    it('should show an undo toast after deleting and restore the transaction', async () => {
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+
+      deleteButton(root, 'Uber').click();
+      await fixture.whenStable();
+      expect(descriptions(root)).toEqual(['Sueldo', 'Arriendo', 'Freelance']);
+      expect(root.querySelector('[role="status"]')?.textContent).toContain('Se eliminó «Uber»');
+
+      undoButton(root)!.click();
+      await fixture.whenStable();
+      expect(descriptions(root)).toEqual(['Sueldo', 'Uber', 'Arriendo', 'Freelance']);
+      expect(root.querySelector('[role="status"]')).toBeNull();
+      expect(JSON.parse(localStorage.getItem('transactions')!).map((t: Transaction) => t.id)).toContain('c');
+    });
+
+    it('should hide the toast after a few seconds', async () => {
+      vi.useFakeTimers();
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+
+      deleteButton(root, 'Uber').click();
+      fixture.detectChanges();
+      expect(undoButton(root)).toBeDefined();
+
+      vi.advanceTimersByTime(5000);
+      fixture.detectChanges();
+      expect(root.querySelector('[role="status"]')).toBeNull();
+      expect(descriptions(root)).not.toContain('Uber');
+    });
+
+    it('should only offer to undo the most recent delete', async () => {
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+
+      deleteButton(root, 'Uber').click();
+      await fixture.whenStable();
+      deleteButton(root, 'Arriendo').click();
+      await fixture.whenStable();
+      expect(root.querySelector('[role="status"]')?.textContent).toContain('Se eliminó «Arriendo»');
+
+      undoButton(root)!.click();
+      await fixture.whenStable();
+      expect(descriptions(root)).toEqual(['Sueldo', 'Arriendo', 'Freelance']);
+    });
+  });
 });

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TransactionService } from '../../core/services/transaction.service';
 import { BudgetService } from '../../core/services/budget.service';
+import { RecurringService } from '../../core/services/recurring.service';
 import { Category, CategoryType } from '../../core/models/category.model';
 
 /** Colors offered to new categories, in order, skipping ones already in use. */
@@ -14,7 +15,8 @@ interface Group {
 
 interface PendingDelete {
   category: Category;
-  usage: number;
+  /** What uses the category, e.g. "2 transacciones y 1 recurrente". */
+  usage: string;
   replacementId: string;
 }
 
@@ -71,7 +73,7 @@ const INPUT = 'px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm fo
                 @if (pendingDelete()?.category?.id === category.id) {
                   <div class="mt-3 p-3 rounded-lg bg-amber-50 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" role="group" aria-label="Confirmar eliminación">
                     <label [for]="'replacement-' + category.id">
-                      «{{ category.name }}» tiene {{ pendingDelete()!.usage }} {{ pendingDelete()!.usage === 1 ? 'transacción' : 'transacciones' }}. Muévelas a:
+                      «{{ category.name }}» tiene {{ pendingDelete()!.usage }}. Muévelas a:
                     </label>
                     <div class="flex flex-wrap gap-2 mt-2">
                       <select
@@ -120,6 +122,7 @@ const INPUT = 'px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm fo
 export class CategoriesComponent {
   private readonly tx = inject(TransactionService);
   private readonly budgets = inject(BudgetService);
+  private readonly recurring = inject(RecurringService);
 
   protected readonly buttonClass = BUTTON;
   protected readonly inputClass = INPUT;
@@ -177,13 +180,18 @@ export class CategoriesComponent {
 
   protected askDelete(category: Category): void {
     this.error.set(null);
-    const usage = this.tx.categoryUsage(category.id);
-    if (usage === 0) {
+    const transactions = this.tx.categoryUsage(category.id);
+    const rules = this.recurring.categoryUsage(category.id);
+    if (transactions === 0 && rules === 0) {
       this.delete(category.id, null);
       return;
     }
+    const parts = [
+      transactions > 0 ? (transactions === 1 ? '1 transacción' : `${transactions} transacciones`) : '',
+      rules > 0 ? (rules === 1 ? '1 recurrente' : `${rules} recurrentes`) : '',
+    ].filter(Boolean);
     const replacement = this.tx.categories().find(c => c.type === category.type && c.id !== category.id)!;
-    this.pendingDelete.set({ category, usage, replacementId: replacement.id });
+    this.pendingDelete.set({ category, usage: parts.join(' y '), replacementId: replacement.id });
   }
 
   protected setReplacement(replacementId: string): void {
@@ -200,6 +208,7 @@ export class CategoriesComponent {
   private delete(id: string, replacementId: string | null): void {
     try {
       this.tx.removeCategory(id, replacementId);
+      if (replacementId) this.recurring.reassignCategory(id, replacementId);
       this.budgets.setLimit(id, null);
     } catch (error) {
       this.error.set((error as Error).message);

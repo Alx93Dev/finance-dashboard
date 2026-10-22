@@ -1,5 +1,6 @@
 import { Budget } from '../models/budget.model';
 import { Category, DEFAULT_CATEGORIES } from '../models/category.model';
+import { Recurring } from '../models/recurring.model';
 import { Transaction } from '../models/transaction.model';
 
 /** Minimal storage surface a migration needs; keeps migrations independent of Angular DI. */
@@ -84,6 +85,25 @@ export const MIGRATIONS: Migration[] = [
       const hasBothTypes =
         categories.some(c => c.type === 'income') && categories.some(c => c.type === 'expense');
       storage.set('categories', hasBothTypes ? categories : DEFAULT_CATEGORIES);
+    },
+  },
+  {
+    version: 4,
+    description: 'Add recurring monthly transactions',
+    migrate(storage) {
+      const raw = storage.get<unknown>('recurring', []);
+      const recurring: Recurring[] = Array.isArray(raw)
+        ? raw.filter((r): r is Recurring =>
+            !!r &&
+            typeof r.id === 'string' &&
+            typeof r.description === 'string' &&
+            typeof r.categoryId === 'string' &&
+            (r.type === 'income' || r.type === 'expense') &&
+            Number.isFinite(r.amount) &&
+            Number.isInteger(r.dayOfMonth) && r.dayOfMonth >= 1 && r.dayOfMonth <= 31 &&
+            typeof r.lastMonth === 'string' && /^\d{4}-\d{2}$/.test(r.lastMonth))
+        : [];
+      storage.set('recurring', recurring);
     },
   },
 ];

@@ -123,4 +123,14 @@ describe('StorageService', () => {
       expect(createService().get('categories', null)).toEqual(custom.slice(0, 2));
     });
   });
+
+  describe('migration v4', () => {
+    it('should keep valid recurring rules and drop malformed ones', () => {
+      const valid = { id: 'r', description: 'Arriendo', amount: 450000, categoryId: '7', type: 'expense', dayOfMonth: 1, lastMonth: '2025-01' };
+      localStorage.setItem(SCHEMA_VERSION_KEY, '3');
+      localStorage.setItem('recurring', JSON.stringify([valid, { ...valid, id: 's', dayOfMonth: 0 }, { ...valid, id: 't', lastMonth: 'enero' }]));
+
+      expect(createService().get('recurring', null)).toEqual([valid]);
+    });
+  });
 });

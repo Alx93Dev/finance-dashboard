@@ -1,4 +1,5 @@
 import { Budget } from '../models/budget.model';
+import { Recurring } from '../models/recurring.model';
 import { Category } from '../models/category.model';
 import { Transaction } from '../models/transaction.model';
 
@@ -14,6 +15,8 @@ export interface Backup {
   budgets?: Budget[];
   /** Missing in backups made before categories were editable (schema version 2 or older). */
   categories?: Category[];
+  /** Missing in backups made before recurring transactions (schema version 3 or older). */
+  recurring?: Recurring[];
 }
 
 export interface BackupData {
@@ -22,6 +25,8 @@ export interface BackupData {
   budgets: Budget[] | null;
   /** null when the backup predates editable categories, so current ones are kept. */
   categories: Category[] | null;
+  /** null when the backup predates recurring transactions, so current rules are kept. */
+  recurring: Recurring[] | null;
 }
 
 const CSV_HEADER = ['Fecha', 'Descripción', 'Tipo', 'Categoría', 'Monto'];
@@ -47,7 +52,7 @@ export function toCsv(transactions: Transaction[], categories: Category[]): stri
 }
 
 export function toBackup(
-  data: { transactions: Transaction[]; budgets: Budget[]; categories: Category[] },
+  data: { transactions: Transaction[]; budgets: Budget[]; categories: Category[]; recurring: Recurring[] },
   schemaVersion: number,
   now = new Date(),
 ): Backup {
@@ -74,6 +79,33 @@ function parseCategory(item: unknown): Category | null {
     return null;
   }
   return { id: c['id'], name: c['name'], color: c['color'], type: c['type'] };
+}
+
+function parseRecurring(item: unknown): Recurring | null {
+  if (!item || typeof item !== 'object') return null;
+  const r = item as Record<string, unknown>;
+  const amount = Number(r['amount']);
+  const day = Number(r['dayOfMonth']);
+  if (
+    typeof r['id'] !== 'string' ||
+    typeof r['description'] !== 'string' ||
+    typeof r['categoryId'] !== 'string' ||
+    (r['type'] !== 'income' && r['type'] !== 'expense') ||
+    !Number.isFinite(amount) ||
+    !Number.isInteger(day) || day < 1 || day > 31 ||
+    typeof r['lastMonth'] !== 'string' || !/^\d{4}-\d{2}$/.test(r['lastMonth'])
+  ) {
+    return null;
+  }
+  return {
+    id: r['id'],
+    description: r['description'],
+    amount,
+    categoryId: r['categoryId'],
+    type: r['type'],
+    dayOfMonth: day,
+    lastMonth: r['lastMonth'],
+  };
 }
 
 /** Parses an optional list of the backup; undefined means the backup predates it. */
@@ -133,5 +165,6 @@ export function parseBackup(text: string, supportedVersion: number): BackupData 
   }
   const budgets = parseOptionalList(backup.budgets, parseBudget, 'El respaldo tiene presupuestos dañados.');
   const categories = parseOptionalList(backup.categories, parseCategory, 'El respaldo tiene categorías dañadas.');
-  return { transactions: transactions as Transaction[], budgets, categories };
+  const recurring = parseOptionalList(backup.recurring, parseRecurring, 'El respaldo tiene recurrentes dañadas.');
+  return { transactions: transactions as Transaction[], budgets, categories, recurring };
 }

@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { MAIN_ACCOUNT_ID } from '../../../core/models/account.model';
 import { CURRENCIES, Currency, isCurrency } from '../../../core/models/currency.model';
 import { AccountService } from '../../../core/services/account.service';
 import { ExchangeRateService } from '../../../core/services/exchange-rate.service';
@@ -76,7 +75,7 @@ interface Draft {
                       <option [value]="option.code" [selected]="option.code === row.currency">{{ option.code }}</option>
                     }
                   </select>
-                  @if (row.id !== mainId) {
+                  @if (row.id !== draftDefault()) {
                     <button
                       type="button"
                       (click)="patch(row.key, { removed: true })"
@@ -97,9 +96,22 @@ interface Draft {
               <p class="text-xs text-amber-600 dark:text-amber-400">
                 Al guardar,
                 {{ count === 1 ? 'el movimiento' : 'los ' + count + ' movimientos' }}
-                de {{ accounts.getById(row.id)?.name }} {{ count === 1 ? 'pasará' : 'pasarán' }} a {{ mainName() }}.
+                de {{ accounts.getById(row.id)?.name }} {{ count === 1 ? 'pasará' : 'pasarán' }} a {{ accounts.getById(draftDefault())?.name }}.
               </p>
             }
+          }
+          @if (rows.length > 1) {
+            <div>
+              <label for="default-account" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Cuenta principal</label>
+              <select id="default-account" name="default" [class]="inputClass + ' w-full'" (change)="draftDefault.set($any($event.target).value)">
+                @for (row of rows; track row.key) {
+                  @if (!row.removed) {
+                    <option [value]="row.id" [selected]="row.id === draftDefault()">{{ row.name }}</option>
+                  }
+                }
+              </select>
+              <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Viene elegida al agregar un movimiento o importar una cartola, y no se puede eliminar.</p>
+            </div>
           }
           <div class="flex justify-end gap-2 pt-1">
             <button type="button" [class]="buttonClass" (click)="drafts.set(null)">Cancelar</button>
@@ -182,7 +194,12 @@ interface Draft {
         <ul class="divide-y divide-gray-100 dark:divide-gray-800" aria-labelledby="accounts-heading">
           @for (item of accounts.balances(); track item.account.id) {
             <li class="flex items-baseline justify-between gap-4 py-2 text-sm first:pt-0">
-              <span class="text-gray-700 dark:text-gray-300">{{ item.account.name }}</span>
+              <span class="text-gray-700 dark:text-gray-300">
+                {{ item.account.name }}
+                @if (accounts.hasSeveral() && item.account.id === accounts.defaultId()) {
+                  <span class="ml-1 rounded-full bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">Principal</span>
+                }
+              </span>
               <span class="text-right">
                 <span class="block whitespace-nowrap font-medium tabular-nums" [class]="balanceClass(item.balance)">{{ item.balance | money:item.account.currency }}</span>
                 @if (item.account.currency !== 'CLP' && rates.rate(item.account.currency) !== null) {
@@ -287,7 +304,6 @@ export class AccountsCardComponent {
 
   protected readonly buttonClass = BUTTON;
   protected readonly inputClass = INPUT;
-  protected readonly mainId = MAIN_ACCOUNT_ID;
   protected readonly currencies = CURRENCIES;
   protected readonly editingRates = signal(false);
   protected readonly transferFrom = signal('');
@@ -301,7 +317,8 @@ export class AccountsCardComponent {
   protected readonly adding = signal(false);
   protected readonly transferError = signal<string | null>(null);
   protected readonly latestTransfers = computed(() => this.accounts.recentTransfers().slice(0, LATEST_TRANSFERS));
-  protected readonly mainName = computed(() => this.accounts.getById(MAIN_ACCOUNT_ID)?.name ?? 'la cuenta principal');
+  /** Account chosen as the default in the edit form; it applies on save. */
+  protected readonly draftDefault = signal('');
   private nextKey = 0;
 
   protected today(): string {
@@ -364,6 +381,7 @@ export class AccountsCardComponent {
   }
 
   protected startEditing(): void {
+    this.draftDefault.set(this.accounts.defaultId());
     this.drafts.set(this.accounts.accounts().map(a => ({
       key: this.nextKey++, id: a.id, name: a.name, initialBalance: a.initialBalance, currency: a.currency, removed: false,
     })));
@@ -407,6 +425,8 @@ export class AccountsCardComponent {
       currency: isCurrency(data.get(`currency-${row.key}`)) ? data.get(`currency-${row.key}`) as Currency : row.currency,
     }));
     if (values.some(v => !v.name)) return;
+
+    this.accounts.setDefault(this.draftDefault());
 
     for (const row of rows) {
       if (row.removed) this.accounts.remove(row.id);

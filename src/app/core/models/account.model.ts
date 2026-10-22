@@ -10,7 +10,10 @@ export interface Account {
   currency: Currency;
 }
 
-/** Account every existing transaction moves to; it can be renamed but not deleted. */
+/**
+ * Account created with the app, where transactions from before accounts
+ * existed went. It starts as the default account but can be replaced.
+ */
 export const MAIN_ACCOUNT_ID = 'main';
 
 export const DEFAULT_ACCOUNTS: Account[] = [

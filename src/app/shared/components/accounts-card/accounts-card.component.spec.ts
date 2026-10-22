@@ -164,4 +164,25 @@ describe('AccountsCardComponent', () => {
 
     expect(service.accounts().map(a => a.name)).toEqual(['Cuenta principal', 'Billetera']);
   });
+
+  it('should choose another account as the main one', async () => {
+    const { fixture, root, service } = await render();
+    const bci = service.add({ name: 'BCI', initialBalance: 0, currency: 'CLP' });
+    await fixture.whenStable();
+
+    button(root, 'Editar').click();
+    await fixture.whenStable();
+    const select = root.querySelector<HTMLSelectElement>('#default-account')!;
+    select.value = bci.id;
+    select.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    expect(root.querySelector('[aria-label="Eliminar BCI"]')).toBeNull();
+    expect(root.querySelector('[aria-label="Eliminar Cuenta principal"]')).not.toBeNull();
+    button(root, 'Guardar').click();
+    await fixture.whenStable();
+
+    expect(service.defaultId()).toBe(bci.id);
+    const badge = Array.from(root.querySelectorAll('li')).find(li => li.textContent!.includes('Principal'))!;
+    expect(badge.textContent).toContain('BCI');
+  });
 });

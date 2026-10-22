@@ -4,7 +4,7 @@ import { MIGRATIONS, Migration } from './storage-migrations';
 export const SCHEMA_VERSION_KEY = 'schema_version';
 
 /** Keys holding the user's own data, which backups and cloud sync carry. */
-export const DATA_KEYS = ['transactions', 'categories', 'budgets', 'recurring', 'goals', 'accounts', 'transfers'];
+export const DATA_KEYS = ['transactions', 'categories', 'budgets', 'recurring', 'goals', 'accounts', 'transfers', 'default_account'];
 
 @Injectable({ providedIn: 'root' })
 export class StorageService {

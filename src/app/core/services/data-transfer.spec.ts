@@ -35,7 +35,7 @@ describe('parseBackup', () => {
     });
 
   it('should round-trip a backup', () => {
-    expect(parseBackup(backupText(), 7)).toEqual({ transactions: TRANSACTIONS, budgets: BUDGETS, categories: CATEGORIES, recurring: RECURRING, goals: GOALS, accounts: ACCOUNTS, transfers: TRANSFERS });
+    expect(parseBackup(backupText(), 7)).toEqual({ transactions: TRANSACTIONS, budgets: BUDGETS, categories: CATEGORIES, recurring: RECURRING, goals: GOALS, accounts: ACCOUNTS, transfers: TRANSFERS, defaultAccountId: 'main' });
   });
 
   it('should read accounts from before currencies as pesos and keep cross-currency transfers', () => {
@@ -66,15 +66,29 @@ describe('parseBackup', () => {
       goals: null,
       accounts: null,
       transfers: null,
+      defaultAccountId: null,
     });
   });
 
-  it('should keep the main account and move transactions of unknown accounts to it', () => {
+  it('should move transactions of unknown accounts to the default account', () => {
     const parsed = parseBackup(backupText({ accounts: [{ id: 'other', name: 'Otra', initialBalance: 0, currency: 'CLP' }] }), 7);
-    expect(parsed.accounts!.map(a => a.id)).toEqual(['main', 'other']);
-    expect(parsed.transactions.map(t => t.accountId)).toEqual(['main', 'main']);
-    // Its only transfer would now go from the main account to itself.
+    expect(parsed.accounts!.map(a => a.id)).toEqual(['other']);
+    expect(parsed.defaultAccountId).toBe('other');
+    expect(parsed.transactions.map(t => t.accountId)).toEqual(['other', 'other']);
+    // Its only transfer would now go from the default account to itself.
     expect(parsed.transfers).toEqual([]);
+  });
+
+  it('should keep the chosen default account', () => {
+    const accounts = [
+      { id: 'main', name: 'Cuenta principal', initialBalance: 0, currency: 'CLP' },
+      { id: 'bci', name: 'BCI', initialBalance: 0, currency: 'CLP' },
+    ];
+    const transactions = [{ ...TRANSACTIONS[0], accountId: 'gone' }];
+    const parsed = parseBackup(backupText({ accounts, transactions, defaultAccountId: 'bci' }), 8);
+    expect(parsed.defaultAccountId).toBe('bci');
+    expect(parsed.transactions[0].accountId).toBe('bci');
+    expect(parseBackup(backupText({ accounts, defaultAccountId: 'gone' }), 8).defaultAccountId).toBe('main');
   });
 
   it('should reject a backup with a damaged transfer', () => {

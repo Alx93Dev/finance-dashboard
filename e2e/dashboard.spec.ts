@@ -49,6 +49,23 @@ test('tracks balances and transfers between accounts', async ({ page }) => {
   await expect(balance('Total')).toContainText('$470.000');
 });
 
+test('starts new transactions on the chosen main account', async ({ page }) => {
+  await page.getByRole('link', { name: 'Go to Dashboard' }).click();
+  const accounts = page.getByRole('region', { name: 'Cuentas' });
+  await accounts.getByRole('button', { name: 'Agregar cuenta' }).click();
+  await accounts.getByLabel('Nombre de la cuenta').fill('Cuenta Corriente BCI');
+  await accounts.getByRole('button', { name: 'Crear cuenta' }).click();
+
+  await accounts.getByRole('button', { name: 'Editar' }).click();
+  await accounts.getByLabel('Cuenta principal', { exact: true }).selectOption({ label: 'Cuenta Corriente BCI' });
+  await accounts.getByRole('button', { name: 'Guardar' }).click();
+  await expect(accounts.getByRole('listitem').filter({ has: page.getByText('Principal', { exact: true }) })).toContainText('Cuenta Corriente BCI');
+
+  await page.getByRole('link', { name: 'Go to Transactions' }).click();
+  await page.getByRole('button', { name: 'Agregar nueva transacción' }).click();
+  await expect(page.getByRole('dialog').getByLabel('Cuenta').locator('option:checked')).toHaveText('Cuenta Corriente BCI');
+});
+
 test('shows the yearly report', async ({ page }) => {
   await page.getByRole('link', { name: 'Go to Reports' }).click();
   const years = page.getByRole('group', { name: 'Seleccionar año' });

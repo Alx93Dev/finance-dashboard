@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { RecurringService, dateInMonth } from './recurring.service';
 import { TransactionService } from './transaction.service';
 
-const RENT = { description: 'Arriendo', amount: 450000, categoryId: '7', type: 'expense' as const };
+const RENT = { description: 'Arriendo', amount: 450000, categoryId: '7', type: 'expense' as const, accountId: 'main' };
 
 function dates(tx: TransactionService): string[] {
   return tx.transactions().map(t => t.date).sort();

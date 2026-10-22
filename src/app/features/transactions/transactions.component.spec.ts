@@ -3,10 +3,10 @@ import { PAGE_SIZE, TransactionsComponent } from './transactions.component';
 import { Transaction } from '../../core/models/transaction.model';
 
 const STORED: Transaction[] = [
-  { id: 'a', description: 'Arriendo',   amount: 450000,  categoryId: '7', date: '2025-01-01', type: 'expense' },
-  { id: 'b', description: 'Sueldo',     amount: 1200000, categoryId: '1', date: '2025-01-31', type: 'income'  },
-  { id: 'c', description: 'Uber',       amount: 18000,   categoryId: '4', date: '2025-01-12', type: 'expense' },
-  { id: 'd', description: 'Freelance',  amount: 350000,  categoryId: '2', date: '2024-12-15', type: 'income'  },
+  { id: 'a', description: 'Arriendo',   amount: 450000,  categoryId: '7', date: '2025-01-01', type: 'expense', accountId: 'main' },
+  { id: 'b', description: 'Sueldo',     amount: 1200000, categoryId: '1', date: '2025-01-31', type: 'income', accountId: 'main'  },
+  { id: 'c', description: 'Uber',       amount: 18000,   categoryId: '4', date: '2025-01-12', type: 'expense', accountId: 'main' },
+  { id: 'd', description: 'Freelance',  amount: 350000,  categoryId: '2', date: '2024-12-15', type: 'income', accountId: 'main'  },
 ];
 
 function descriptions(root: HTMLElement): string[] {
@@ -123,6 +123,33 @@ describe('TransactionsComponent', () => {
     });
   });
 
+  describe('accounts', () => {
+    it('should only offer the account filter with several accounts', async () => {
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      expect((fixture.nativeElement as HTMLElement).querySelector('#account-filter')).toBeNull();
+    });
+
+    it('should filter by account and name it in each row', async () => {
+      localStorage.setItem('accounts', JSON.stringify([
+        { id: 'main', name: 'Cuenta corriente', initialBalance: 0 },
+        { id: 'cash', name: 'Efectivo', initialBalance: 0 },
+      ]));
+      localStorage.setItem('transactions', JSON.stringify(STORED.map(t => (t.id === 'c' ? { ...t, accountId: 'cash' } : t))));
+      localStorage.setItem('schema_version', '6');
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.textContent).toContain('Transporte · Efectivo');
+
+      const select = root.querySelector<HTMLSelectElement>('#account-filter')!;
+      select.value = 'cash';
+      select.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      expect(descriptions(root)).toEqual(['Uber']);
+    });
+  });
+
   describe('date range and pagination', () => {
     async function render() {
       const fixture = TestBed.createComponent(TransactionsComponent);
@@ -150,6 +177,7 @@ describe('TransactionsComponent', () => {
         categoryId: '4',
         date: `2025-03-${String(28 - (i % 28)).padStart(2, '0')}`,
         type: 'expense',
+        accountId: 'main',
       }));
       localStorage.setItem('transactions', JSON.stringify(many));
     }
@@ -292,7 +320,7 @@ describe('TransactionsComponent', () => {
 
     it('should not show the sample data banner for the user\'s own data', async () => {
       localStorage.setItem('transactions', JSON.stringify([
-        { id: 'x', description: 'Café', amount: 3000, categoryId: '3', date: '2025-02-01', type: 'expense' },
+        { id: 'x', description: 'Café', amount: 3000, categoryId: '3', date: '2025-02-01', type: 'expense', accountId: 'main' },
       ]));
       const fixture = TestBed.createComponent(TransactionsComponent);
       await fixture.whenStable();

@@ -1,3 +1,4 @@
+import { Account, DEFAULT_ACCOUNTS, MAIN_ACCOUNT_ID } from '../models/account.model';
 import { Budget } from '../models/budget.model';
 import { Category, DEFAULT_CATEGORIES } from '../models/category.model';
 import { Goal } from '../models/goal.model';
@@ -31,7 +32,8 @@ export const MIGRATIONS: Migration[] = [
         storage.set('transactions', []);
         return;
       }
-      const cleaned: Transaction[] = [];
+      // Accounts came later (v6), so transactions here don't have one yet.
+      const cleaned: Omit<Transaction, 'accountId'>[] = [];
       for (const item of raw) {
         if (!item || typeof item !== 'object') continue;
         const t = item as Record<string, unknown>;
@@ -121,6 +123,25 @@ export const MIGRATIONS: Migration[] = [
             (g.deadline === null || (typeof g.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(g.deadline))))
         : [];
       storage.set('goals', goals);
+    },
+  },  {
+    version: 6,
+    description: 'Add accounts and move every transaction to the main account',
+    migrate(storage) {
+      const raw = storage.get<unknown>('accounts', []);
+      const accounts: Account[] = Array.isArray(raw)
+        ? raw.filter((a): a is Account =>
+            !!a && typeof a.id === 'string' && typeof a.name === 'string' && Number.isFinite(a.initialBalance))
+        : [];
+      if (!accounts.some(a => a.id === MAIN_ACCOUNT_ID)) accounts.unshift(...DEFAULT_ACCOUNTS);
+      storage.set('accounts', accounts);
+
+      const ids = new Set(accounts.map(a => a.id));
+      for (const key of ['transactions', 'recurring']) {
+        const items = storage.get<{ accountId?: unknown }[]>(key, []);
+        storage.set(key, items.map(item =>
+          typeof item.accountId === 'string' && ids.has(item.accountId) ? item : { ...item, accountId: MAIN_ACCOUNT_ID }));
+      }
     },
   },
 ];

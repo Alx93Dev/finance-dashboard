@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, linkedSignal, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { TransactionService } from '../../core/services/transaction.service';
+import { AccountService } from '../../core/services/account.service';
 import { TransactionFormComponent } from './transaction-form/transaction-form.component';
 import { DataTransferPanelComponent } from '../../shared/components/data-transfer-panel/data-transfer-panel.component';
 import { RecurringPanelComponent } from '../../shared/components/recurring-panel/recurring-panel.component';
@@ -83,6 +84,20 @@ function normalize(text: string): string {
             <option [value]="category.id" [selected]="category.id === categoryFilter()">{{ category.name }}</option>
           }
         </select>
+        @if (accounts.hasSeveral()) {
+          <label for="account-filter" class="sr-only">Filtrar por cuenta</label>
+          <select
+            id="account-filter"
+            [value]="accountFilter()"
+            (change)="accountFilter.set($any($event.target).value)"
+            class="sm:w-48 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          >
+            <option value="">Todas las cuentas</option>
+            @for (account of accounts.accounts(); track account.id) {
+              <option [value]="account.id" [selected]="account.id === accountFilter()">{{ account.name }}</option>
+            }
+          </select>
+        }
       </div>
 
       <div class="flex flex-wrap items-end gap-2 mb-6">
@@ -151,7 +166,7 @@ function normalize(text: string): string {
                     <div>
                       <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ transaction.description }}</p>
                       <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                        {{ getCategoryName(transaction.categoryId) }} · {{ transaction.date | date:'dd MMM yyyy' }}
+                        {{ getCategoryName(transaction.categoryId) }}@if (accounts.hasSeveral()) { · {{ accounts.getById(transaction.accountId)?.name }}} · {{ transaction.date | date:'dd MMM yyyy' }}
                       </p>
                     </div>
                   </div>
@@ -242,6 +257,7 @@ function normalize(text: string): string {
 })
 export class TransactionsComponent {
   private readonly transactionService = inject(TransactionService);
+  protected readonly accounts = inject(AccountService);
   private undoTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Last deleted transaction, kept while the "Deshacer" toast is visible. */
@@ -264,12 +280,13 @@ export class TransactionsComponent {
   protected readonly hasTransactions = computed(() => this.transactionService.transactions().length > 0);
   protected readonly searchTerm = signal('');
   protected readonly categoryFilter = signal('');
+  protected readonly accountFilter = signal('');
   /** Inclusive date range as 'YYYY-MM-DD'; empty means open-ended. */
   protected readonly dateFrom = signal('');
   protected readonly dateTo = signal('');
 
   protected readonly hasFilters = computed(() =>
-    !!(this.searchTerm().trim() || this.categoryFilter() || this.dateFrom() || this.dateTo())
+    !!(this.searchTerm().trim() || this.categoryFilter() || this.accountFilter() || this.dateFrom() || this.dateTo())
   );
 
   protected readonly categoryOptions = computed(() => {
@@ -281,12 +298,15 @@ export class TransactionsComponent {
   protected readonly filteredTransactions = computed(() => {
     const filter = this.activeFilter();
     const categoryId = this.categoryFilter();
+    // A deleted account stops filtering instead of hiding everything.
+    const accountId = this.accounts.getById(this.accountFilter()) ? this.accountFilter() : '';
     const term = normalize(this.searchTerm().trim());
     const from = this.dateFrom();
     const to = this.dateTo();
     const filtered = this.transactionService.transactions().filter(t =>
       (filter === 'all' || t.type === filter) &&
       (!categoryId || t.categoryId === categoryId) &&
+      (!accountId || t.accountId === accountId) &&
       (!term || normalize(t.description).includes(term)) &&
       (!from || t.date >= from) &&
       (!to || t.date <= to)
@@ -301,7 +321,7 @@ export class TransactionsComponent {
 
   /** Current page, back to 1 whenever a filter changes. */
   protected readonly page = linkedSignal({
-    source: () => [this.activeFilter(), this.categoryFilter(), this.searchTerm(), this.dateFrom(), this.dateTo()],
+    source: () => [this.activeFilter(), this.categoryFilter(), this.accountFilter(), this.searchTerm(), this.dateFrom(), this.dateTo()],
     computation: () => 1,
   });
 
@@ -316,6 +336,7 @@ export class TransactionsComponent {
   protected clearFilters(): void {
     this.searchTerm.set('');
     this.categoryFilter.set('');
+    this.accountFilter.set('');
     this.dateFrom.set('');
     this.dateTo.set('');
   }

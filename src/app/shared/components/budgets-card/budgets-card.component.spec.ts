@@ -4,7 +4,7 @@ import { BudgetService } from '../../../core/services/budget.service';
 import { Transaction } from '../../../core/models/transaction.model';
 
 const STORED: Transaction[] = [
-  { id: 'a', description: 'Supermercado', amount: 85000, categoryId: '3', date: '2025-01-10', type: 'expense' },
+  { id: 'a', description: 'Supermercado', amount: 85000, categoryId: '3', date: '2025-01-10', type: 'expense', accountId: 'main' },
 ];
 
 function button(root: HTMLElement, label: string): HTMLButtonElement {

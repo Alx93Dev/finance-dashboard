@@ -4,11 +4,11 @@ import { TransactionService } from './transaction.service';
 import { Transaction } from '../models/transaction.model';
 
 const STORED: Transaction[] = [
-  { id: 'a', description: 'Supermercado', amount: 90000,  categoryId: '3', date: '2025-01-10', type: 'expense' },
-  { id: 'b', description: 'Feria',        amount: 30000,  categoryId: '3', date: '2025-01-20', type: 'expense' },
-  { id: 'c', description: 'Uber',         amount: 18000,  categoryId: '4', date: '2025-01-12', type: 'expense' },
-  { id: 'd', description: 'Supermercado', amount: 500000, categoryId: '3', date: '2024-12-10', type: 'expense' },
-  { id: 'e', description: 'Sueldo',       amount: 900000, categoryId: '1', date: '2025-01-31', type: 'income'  },
+  { id: 'a', description: 'Supermercado', amount: 90000,  categoryId: '3', date: '2025-01-10', type: 'expense', accountId: 'main' },
+  { id: 'b', description: 'Feria',        amount: 30000,  categoryId: '3', date: '2025-01-20', type: 'expense', accountId: 'main' },
+  { id: 'c', description: 'Uber',         amount: 18000,  categoryId: '4', date: '2025-01-12', type: 'expense', accountId: 'main' },
+  { id: 'd', description: 'Supermercado', amount: 500000, categoryId: '3', date: '2024-12-10', type: 'expense', accountId: 'main' },
+  { id: 'e', description: 'Sueldo',       amount: 900000, categoryId: '1', date: '2025-01-31', type: 'income', accountId: 'main'  },
 ];
 
 describe('budgetStatus', () => {

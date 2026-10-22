@@ -8,6 +8,7 @@ const TRANSACTIONS: Transaction[] = [
   { id: 'a', description: 'Cena "especial", 2', amount: 45000,   categoryId: '3', date: '2025-01-10', type: 'expense', accountId: 'cash' },
 ];
 const ACCOUNTS = [...DEFAULT_ACCOUNTS, { id: 'cash', name: 'Efectivo', initialBalance: 20000 }];
+const TRANSFERS = [{ id: 't', fromAccountId: 'main', toAccountId: 'cash', amount: 50000, date: '2025-01-15', description: 'Cajero' }];
 
 describe('toCsv', () => {
   it('should write a header and one row per transaction, oldest first', () => {
@@ -29,12 +30,12 @@ describe('parseBackup', () => {
   const CATEGORIES = [...DEFAULT_CATEGORIES, { id: 'x', name: 'Mascotas', type: 'expense' as const, color: '#ec4899' }];
   const backupText = (overrides: object = {}) =>
     JSON.stringify({
-      ...toBackup({ transactions: TRANSACTIONS, budgets: BUDGETS, categories: CATEGORIES, recurring: RECURRING, goals: GOALS, accounts: ACCOUNTS }, 6, new Date('2025-02-01T00:00:00Z')),
+      ...toBackup({ transactions: TRANSACTIONS, budgets: BUDGETS, categories: CATEGORIES, recurring: RECURRING, goals: GOALS, accounts: ACCOUNTS, transfers: TRANSFERS }, 7, new Date('2025-02-01T00:00:00Z')),
       ...overrides,
     });
 
   it('should round-trip a backup', () => {
-    expect(parseBackup(backupText(), 6)).toEqual({ transactions: TRANSACTIONS, budgets: BUDGETS, categories: CATEGORIES, recurring: RECURRING, goals: GOALS, accounts: ACCOUNTS });
+    expect(parseBackup(backupText(), 7)).toEqual({ transactions: TRANSACTIONS, budgets: BUDGETS, categories: CATEGORIES, recurring: RECURRING, goals: GOALS, accounts: ACCOUNTS, transfers: TRANSFERS });
   });
 
   it('should read a backup made before budgets existed into the main account', () => {
@@ -44,58 +45,66 @@ describe('parseBackup', () => {
       exportedAt: '',
       transactions: TRANSACTIONS.map(({ accountId: _, ...t }) => t),
     };
-    expect(parseBackup(JSON.stringify(v1), 6)).toEqual({
+    expect(parseBackup(JSON.stringify(v1), 7)).toEqual({
       transactions: TRANSACTIONS.map(t => ({ ...t, accountId: 'main' })),
       budgets: null,
       categories: null,
       recurring: null,
       goals: null,
       accounts: null,
+      transfers: null,
     });
   });
 
   it('should keep the main account and move transactions of unknown accounts to it', () => {
-    const parsed = parseBackup(backupText({ accounts: [{ id: 'other', name: 'Otra', initialBalance: 0 }] }), 6);
+    const parsed = parseBackup(backupText({ accounts: [{ id: 'other', name: 'Otra', initialBalance: 0 }] }), 7);
     expect(parsed.accounts!.map(a => a.id)).toEqual(['main', 'other']);
     expect(parsed.transactions.map(t => t.accountId)).toEqual(['main', 'main']);
+    // Its only transfer would now go from the main account to itself.
+    expect(parsed.transfers).toEqual([]);
+  });
+
+  it('should reject a backup with a damaged transfer', () => {
+    expect(() => parseBackup(backupText({ transfers: [{ ...TRANSFERS[0], toAccountId: 'main' }] }), 7))
+      .toThrow('transferencias dañadas');
   });
 
   it('should reject a backup with a damaged account', () => {
-    expect(() => parseBackup(backupText({ accounts: [{ id: 'x', name: 'Sin saldo' }] }), 6))
+    expect(() => parseBackup(backupText({ accounts: [{ id: 'x', name: 'Sin saldo' }] }), 7))
       .toThrow('cuentas dañadas');
   });
 
   it('should reject a backup with a damaged budget', () => {
-    expect(() => parseBackup(backupText({ budgets: [{ categoryId: '3', amount: -1 }] }), 6))
+    expect(() => parseBackup(backupText({ budgets: [{ categoryId: '3', amount: -1 }] }), 7))
       .toThrow('presupuestos dañados');
   });
 
   it('should reject a backup with a damaged recurring rule', () => {
-    expect(() => parseBackup(backupText({ recurring: [{ ...RECURRING[0], dayOfMonth: 32 }] }), 6))
+    expect(() => parseBackup(backupText({ recurring: [{ ...RECURRING[0], dayOfMonth: 32 }] }), 7))
       .toThrow('recurrentes dañadas');
   });
 
   it('should reject a backup with a damaged goal', () => {
-    expect(() => parseBackup(backupText({ goals: [{ ...GOALS[0], target: 0 }] }), 6))
+    expect(() => parseBackup(backupText({ goals: [{ ...GOALS[0], target: 0 }] }), 7))
       .toThrow('metas dañadas');
   });
 
   it('should reject a backup with a damaged category', () => {
-    expect(() => parseBackup(backupText({ categories: [{ id: 'x', name: 'Sin tipo', color: '#000' }] }), 6))
+    expect(() => parseBackup(backupText({ categories: [{ id: 'x', name: 'Sin tipo', color: '#000' }] }), 7))
       .toThrow('categorías dañadas');
   });
 
   it('should reject text that is not JSON', () => {
-    expect(() => parseBackup('no es json', 6)).toThrow('El archivo no es un JSON válido.');
+    expect(() => parseBackup('no es json', 7)).toThrow('El archivo no es un JSON válido.');
   });
 
   it('should reject JSON that is not a backup from this app', () => {
-    expect(() => parseBackup('[]', 6)).toThrow('El archivo no es un respaldo de Finance Dashboard.');
-    expect(() => parseBackup(backupText({ app: 'otra-app' }), 6)).toThrow('no es un respaldo');
+    expect(() => parseBackup('[]', 7)).toThrow('El archivo no es un respaldo de Finance Dashboard.');
+    expect(() => parseBackup(backupText({ app: 'otra-app' }), 7)).toThrow('no es un respaldo');
   });
 
   it('should reject a backup from a newer schema version', () => {
-    expect(() => parseBackup(backupText({ schemaVersion: 7 }), 6)).toThrow('versión más nueva');
+    expect(() => parseBackup(backupText({ schemaVersion: 8 }), 7)).toThrow('versión más nueva');
   });
 
   it('should reject a backup with a damaged transaction', () => {

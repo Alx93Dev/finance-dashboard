@@ -168,4 +168,14 @@ describe('StorageService', () => {
       expect(service.get<{ accountId: string }[]>('recurring', []).map(r => r.accountId)).toEqual(['main']);
     });
   });
+
+  describe('migration v7', () => {
+    it('should keep valid transfers and drop malformed ones', () => {
+      const valid = { id: 't', fromAccountId: 'main', toAccountId: 'cash', amount: 1000, date: '2025-01-01', description: '' };
+      localStorage.setItem(SCHEMA_VERSION_KEY, '6');
+      localStorage.setItem('transfers', JSON.stringify([valid, { ...valid, id: 'u', toAccountId: 'main' }, { ...valid, id: 'v', amount: 0 }]));
+
+      expect(createService().get('transfers', null)).toEqual([valid]);
+    });
+  });
 });

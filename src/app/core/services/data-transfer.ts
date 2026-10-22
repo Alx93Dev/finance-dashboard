@@ -4,6 +4,7 @@ import { Recurring } from '../models/recurring.model';
 import { Category } from '../models/category.model';
 import { Goal } from '../models/goal.model';
 import { Transaction } from '../models/transaction.model';
+import { Transfer } from '../models/transfer.model';
 
 /** Marks a JSON file as a backup made by this app. */
 export const BACKUP_APP_ID = 'finance-dashboard';
@@ -23,6 +24,8 @@ export interface Backup {
   goals?: Goal[];
   /** Missing in backups made before accounts (schema version 5 or older). */
   accounts?: Account[];
+  /** Missing in backups made before transfers (schema version 6 or older). */
+  transfers?: Transfer[];
 }
 
 export interface BackupData {
@@ -37,6 +40,8 @@ export interface BackupData {
   goals: Goal[] | null;
   /** null when the backup predates accounts; its transactions then belong to the main account. */
   accounts: Account[] | null;
+  /** null when the backup predates transfers, so current ones are kept. */
+  transfers: Transfer[] | null;
 }
 
 const CSV_HEADER = ['Fecha', 'Descripción', 'Tipo', 'Categoría', 'Cuenta', 'Monto'];
@@ -64,7 +69,7 @@ export function toCsv(transactions: Transaction[], categories: Category[], accou
 }
 
 export function toBackup(
-  data: { transactions: Transaction[]; budgets: Budget[]; categories: Category[]; recurring: Recurring[]; goals: Goal[]; accounts: Account[] },
+  data: { transactions: Transaction[]; budgets: Budget[]; categories: Category[]; recurring: Recurring[]; goals: Goal[]; accounts: Account[]; transfers: Transfer[] },
   schemaVersion: number,
   now = new Date(),
 ): Backup {
@@ -147,6 +152,31 @@ function parseAccount(item: unknown): Account | null {
   return { id: a['id'], name: a['name'], initialBalance };
 }
 
+function parseTransfer(item: unknown): Transfer | null {
+  if (!item || typeof item !== 'object') return null;
+  const t = item as Record<string, unknown>;
+  const amount = Number(t['amount']);
+  if (
+    typeof t['id'] !== 'string' ||
+    typeof t['fromAccountId'] !== 'string' ||
+    typeof t['toAccountId'] !== 'string' ||
+    t['fromAccountId'] === t['toAccountId'] ||
+    !Number.isFinite(amount) || amount <= 0 ||
+    typeof t['date'] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(t['date']) ||
+    typeof t['description'] !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    id: t['id'],
+    fromAccountId: t['fromAccountId'],
+    toAccountId: t['toAccountId'],
+    amount,
+    date: t['date'],
+    description: t['description'],
+  };
+}
+
 /** Parses an optional list of the backup; undefined means the backup predates it. */
 function parseOptionalList<T>(value: unknown, parse: (item: unknown) => T | null, error: string): T[] | null {
   if (value === undefined) return null;
@@ -212,8 +242,12 @@ export function parseBackup(text: string, supportedVersion: number): BackupData 
 
   // Anything pointing to an account the backup doesn't have goes to the main account.
   const accountIds = new Set((accounts ?? DEFAULT_ACCOUNTS).map(a => a.id));
+  const known = (id: string) => (accountIds.has(id) ? id : MAIN_ACCOUNT_ID);
   const inKnownAccount = <T extends { accountId: string }>(item: T): T =>
     accountIds.has(item.accountId) ? item : { ...item, accountId: MAIN_ACCOUNT_ID };
+  const transfers = parseOptionalList(backup.transfers, parseTransfer, 'El respaldo tiene transferencias dañadas.')
+    ?.map(t => ({ ...t, fromAccountId: known(t.fromAccountId), toAccountId: known(t.toAccountId) }))
+    .filter(t => t.fromAccountId !== t.toAccountId) ?? null;
   return {
     transactions: (transactions as Transaction[]).map(inKnownAccount),
     budgets,
@@ -221,5 +255,6 @@ export function parseBackup(text: string, supportedVersion: number): BackupData 
     recurring: recurring?.map(inKnownAccount) ?? null,
     goals,
     accounts,
+    transfers,
   };
 }

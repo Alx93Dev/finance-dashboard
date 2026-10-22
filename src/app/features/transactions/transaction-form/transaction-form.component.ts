@@ -12,6 +12,8 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Transaction } from '../../../core/models/transaction.model';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { RecurringService } from '../../../core/services/recurring.service';
+import { AccountService } from '../../../core/services/account.service';
+import { MAIN_ACCOUNT_ID } from '../../../core/models/account.model';
 
 @Component({
   selector: 'app-transaction-form',
@@ -138,6 +140,24 @@ import { RecurringService } from '../../../core/services/recurring.service';
             }
           </div>
 
+          @if (accounts.hasSeveral()) {
+            <!-- Cuenta -->
+            <div class="mb-4">
+              <label for="accountId" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cuenta
+              </label>
+              <select
+                id="accountId"
+                formControlName="accountId"
+                class="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              >
+                @for (account of accounts.accounts(); track account.id) {
+                  <option [value]="account.id">{{ account.name }}</option>
+                }
+              </select>
+            </div>
+          }
+
           <!-- Fecha -->
           <div class="mb-4">
             <label for="date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -201,6 +221,7 @@ export class TransactionFormComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly transactionService = inject(TransactionService);
   private readonly recurringService = inject(RecurringService);
+  protected readonly accounts = inject(AccountService);
 
   readonly editingTransaction = input<Transaction | null>(null);
   readonly saved = output<void>();
@@ -214,6 +235,7 @@ export class TransactionFormComponent implements OnInit {
     amount:      [null as unknown as number, [Validators.required, Validators.min(1)]],
     categoryId:  ['', Validators.required],
     date:        ['', Validators.required],
+    accountId:   [MAIN_ACCOUNT_ID, Validators.required],
     repeat:      [false],
   });
 
@@ -234,6 +256,7 @@ export class TransactionFormComponent implements OnInit {
         amount:      transaction.amount,
         categoryId:  transaction.categoryId,
         date:        transaction.date,
+        accountId:   transaction.accountId,
         repeat:      false,
       });
     }
@@ -250,15 +273,15 @@ export class TransactionFormComponent implements OnInit {
   protected onSubmit(): void {
     if (this.form.invalid) return;
 
-    const { type, description, amount, categoryId, date, repeat } = this.form.getRawValue();
+    const { repeat, ...values } = this.form.getRawValue();
     const editingTransaction = this.editingTransaction();
 
     if (editingTransaction) {
-      this.transactionService.update({ ...editingTransaction, type, description, amount, categoryId, date });
+      this.transactionService.update({ ...editingTransaction, ...values });
     } else {
-      this.transactionService.add({ type, description, amount, categoryId, date });
+      this.transactionService.add(values);
       if (repeat) {
-        this.recurringService.addFrom({ type, description, amount, categoryId, date });
+        this.recurringService.addFrom(values);
       }
     }
 

@@ -1,17 +1,18 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Transaction } from '../models/transaction.model';
 import { Category, DEFAULT_CATEGORIES } from '../models/category.model';
+import { MAIN_ACCOUNT_ID } from '../models/account.model';
 import { StorageService } from './storage.service';
 
 const SEED_DATA: Omit<Transaction, 'id'>[] = [
-  { description: 'Sueldo enero',       amount: 1200000, categoryId: '1', date: '2025-01-31', type: 'income'  },
-  { description: 'Proyecto freelance', amount: 350000,  categoryId: '2', date: '2025-01-15', type: 'income'  },
-  { description: 'Supermercado',       amount: 85000,   categoryId: '3', date: '2025-01-10', type: 'expense' },
-  { description: 'Uber',               amount: 18000,   categoryId: '4', date: '2025-01-12', type: 'expense' },
-  { description: 'Netflix + Spotify',  amount: 22000,   categoryId: '5', date: '2025-01-05', type: 'expense' },
-  { description: 'Médico',             amount: 35000,   categoryId: '6', date: '2025-01-20', type: 'expense' },
-  { description: 'Arriendo',           amount: 450000,  categoryId: '7', date: '2025-01-01', type: 'expense' },
-  { description: 'Varios',             amount: 30000,   categoryId: '8', date: '2025-01-22', type: 'expense' },
+  { description: 'Sueldo enero',       amount: 1200000, categoryId: '1', date: '2025-01-31', type: 'income',  accountId: MAIN_ACCOUNT_ID },
+  { description: 'Proyecto freelance', amount: 350000,  categoryId: '2', date: '2025-01-15', type: 'income',  accountId: MAIN_ACCOUNT_ID },
+  { description: 'Supermercado',       amount: 85000,   categoryId: '3', date: '2025-01-10', type: 'expense', accountId: MAIN_ACCOUNT_ID },
+  { description: 'Uber',               amount: 18000,   categoryId: '4', date: '2025-01-12', type: 'expense', accountId: MAIN_ACCOUNT_ID },
+  { description: 'Netflix + Spotify',  amount: 22000,   categoryId: '5', date: '2025-01-05', type: 'expense', accountId: MAIN_ACCOUNT_ID },
+  { description: 'Médico',             amount: 35000,   categoryId: '6', date: '2025-01-20', type: 'expense', accountId: MAIN_ACCOUNT_ID },
+  { description: 'Arriendo',           amount: 450000,  categoryId: '7', date: '2025-01-01', type: 'expense', accountId: MAIN_ACCOUNT_ID },
+  { description: 'Varios',             amount: 30000,   categoryId: '8', date: '2025-01-22', type: 'expense', accountId: MAIN_ACCOUNT_ID },
 ];
 
 const STORAGE_KEY = 'transactions';
@@ -234,6 +235,15 @@ export class TransactionService {
 
   getCategoryById(id: string) {
     return this.categories().find(c => c.id === id);
+  }
+
+  /** Moves every transaction of an account to another one, e.g. before deleting it. */
+  reassignAccount(fromId: string, toId: string): void {
+    this.transactions.update(current => {
+      const updated = current.map(t => (t.accountId === fromId ? { ...t, accountId: toId } : t));
+      this.storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
   }
 
   /** Most recent month that has transactions, or null when there are none. */

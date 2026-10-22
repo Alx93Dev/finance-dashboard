@@ -6,7 +6,7 @@ import { RecurringService } from '../../core/services/recurring.service';
 import { Transaction } from '../../core/models/transaction.model';
 
 const STORED: Transaction[] = [
-  { id: 'a', description: 'Uber', amount: 18000, categoryId: '4', date: '2025-01-12', type: 'expense' },
+  { id: 'a', description: 'Uber', amount: 18000, categoryId: '4', date: '2025-01-12', type: 'expense', accountId: 'main' },
 ];
 
 function button(root: HTMLElement, label: string): HTMLButtonElement {
@@ -88,7 +88,7 @@ describe('CategoriesComponent', () => {
 
   it('should ask for a replacement when only a recurring rule uses the category', async () => {
     const recurring = TestBed.inject(RecurringService);
-    recurring.addFrom({ description: 'Gimnasio', amount: 30000, categoryId: '6', type: 'expense', date: '2025-01-03' });
+    recurring.addFrom({ description: 'Gimnasio', amount: 30000, categoryId: '6', type: 'expense', accountId: 'main', date: '2025-01-03' });
     const fixture = TestBed.createComponent(CategoriesComponent);
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;

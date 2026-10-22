@@ -35,6 +35,7 @@ export class RecurringService {
       amount: transaction.amount,
       categoryId: transaction.categoryId,
       type: transaction.type,
+      accountId: transaction.accountId,
       dayOfMonth: Number(transaction.date.slice(8, 10)),
       lastMonth: transaction.date.slice(0, 7),
     };
@@ -54,6 +55,11 @@ export class RecurringService {
   /** Points every rule of a category to another one, e.g. before deleting it. */
   reassignCategory(fromId: string, toId: string): void {
     this.setRules(this.rules().map(r => (r.categoryId === fromId ? { ...r, categoryId: toId } : r)));
+  }
+
+  /** Points every rule of an account to another one, e.g. before deleting it. */
+  reassignAccount(fromId: string, toId: string): void {
+    this.setRules(this.rules().map(r => (r.accountId === fromId ? { ...r, accountId: toId } : r)));
   }
 
   /** Replaces every stored rule, e.g. when restoring a backup. */
@@ -80,6 +86,7 @@ export class RecurringService {
           amount: rule.amount,
           categoryId: rule.categoryId,
           type: rule.type,
+          accountId: rule.accountId,
           date,
         });
         lastMonth = month;

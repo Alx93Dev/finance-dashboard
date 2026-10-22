@@ -2,7 +2,7 @@ import { balanceTrend } from './balance-chart.component';
 import { Transaction } from '../../../core/models/transaction.model';
 
 function t(date: string, amount: number, type: Transaction['type']): Transaction {
-  return { id: date + amount, description: '', amount, categoryId: '1', date, type };
+  return { id: date + amount, description: '', amount, categoryId: '1', date, type, accountId: 'main' };
 }
 
 describe('balanceTrend', () => {

@@ -5,4 +5,5 @@ export interface Transaction {
   categoryId: string;
   date: string;
   type: 'income' | 'expense';
+  accountId: string;
 }

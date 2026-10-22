@@ -65,9 +65,9 @@ describe('StorageService', () => {
   describe('migration v1', () => {
     it('should keep valid transactions, coerce numeric amounts and drop malformed ones', () => {
       localStorage.setItem('transactions', JSON.stringify([
-        { id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income' },
-        { id: 'b', description: 'Uber', amount: '1800', categoryId: '4', date: '2025-01-12', type: 'expense' },
-        { id: 'c', description: 'Sin monto', categoryId: '8', date: '2025-01-01', type: 'expense' },
+        { id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income', accountId: 'main' },
+        { id: 'b', description: 'Uber', amount: '1800', categoryId: '4', date: '2025-01-12', type: 'expense', accountId: 'main' },
+        { id: 'c', description: 'Sin monto', categoryId: '8', date: '2025-01-01', type: 'expense', accountId: 'main' },
         { id: 'd', description: 'Tipo raro', amount: 5, categoryId: '8', date: '2025-01-01', type: 'transfer' },
         null,
       ]));
@@ -75,8 +75,8 @@ describe('StorageService', () => {
       const service = createService();
 
       expect(service.get('transactions', [])).toEqual([
-        { id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income' },
-        { id: 'b', description: 'Uber', amount: 1800, categoryId: '4', date: '2025-01-12', type: 'expense' },
+        { id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income', accountId: 'main' },
+        { id: 'b', description: 'Uber', amount: 1800, categoryId: '4', date: '2025-01-12', type: 'expense', accountId: 'main' },
       ]);
       expect(service.schemaVersion()).toBe(Math.max(...MIGRATIONS.map(m => m.version)));
     });
@@ -126,7 +126,7 @@ describe('StorageService', () => {
 
   describe('migration v4', () => {
     it('should keep valid recurring rules and drop malformed ones', () => {
-      const valid = { id: 'r', description: 'Arriendo', amount: 450000, categoryId: '7', type: 'expense', dayOfMonth: 1, lastMonth: '2025-01' };
+      const valid = { id: 'r', description: 'Arriendo', amount: 450000, categoryId: '7', type: 'expense', accountId: 'main', dayOfMonth: 1, lastMonth: '2025-01' };
       localStorage.setItem(SCHEMA_VERSION_KEY, '3');
       localStorage.setItem('recurring', JSON.stringify([valid, { ...valid, id: 's', dayOfMonth: 0 }, { ...valid, id: 't', lastMonth: 'enero' }]));
 
@@ -148,6 +148,24 @@ describe('StorageService', () => {
       ]));
 
       expect(createService().get('goals', null)).toEqual([valid, noDeadline]);
+    });
+  });
+
+  describe('migration v6', () => {
+    it('should create the main account and move existing transactions and rules to it', () => {
+      localStorage.setItem(SCHEMA_VERSION_KEY, '5');
+      localStorage.setItem('transactions', JSON.stringify([
+        { id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income' },
+      ]));
+      localStorage.setItem('recurring', JSON.stringify([
+        { id: 'r', description: 'Arriendo', amount: 450000, categoryId: '7', type: 'expense', dayOfMonth: 1, lastMonth: '2025-01' },
+      ]));
+
+      const service = createService();
+
+      expect(service.get('accounts', null)).toEqual([{ id: 'main', name: 'Cuenta principal', initialBalance: 0 }]);
+      expect(service.get<{ accountId: string }[]>('transactions', []).map(t => t.accountId)).toEqual(['main']);
+      expect(service.get<{ accountId: string }[]>('recurring', []).map(r => r.accountId)).toEqual(['main']);
     });
   });
 });

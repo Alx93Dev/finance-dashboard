@@ -47,7 +47,7 @@ describe('TransactionFormComponent', () => {
 
   it('should list income categories when editing an income', async () => {
     const income: Transaction = {
-      id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income',
+      id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income', accountId: 'main',
     };
     const fixture = TestBed.createComponent(TransactionFormComponent);
     fixture.componentRef.setInput('editingTransaction', income);
@@ -87,10 +87,46 @@ describe('TransactionFormComponent', () => {
   it('should not offer to repeat when editing', async () => {
     const fixture = TestBed.createComponent(TransactionFormComponent);
     fixture.componentRef.setInput('editingTransaction', {
-      id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income',
+      id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income', accountId: 'main',
     });
     await fixture.whenStable();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('#repeat')).toBeNull();
+  });
+
+  it('should only ask for the account when there are several', async () => {
+    const fixture = TestBed.createComponent(TransactionFormComponent);
+    await fixture.whenStable();
+    expect((fixture.nativeElement as HTMLElement).querySelector('#accountId')).toBeNull();
+  });
+
+  it('should save the transaction and its recurring rule in the chosen account', async () => {
+    localStorage.setItem('accounts', JSON.stringify([
+      { id: 'main', name: 'Cuenta corriente', initialBalance: 0 },
+      { id: 'cash', name: 'Efectivo', initialBalance: 0 },
+    ]));
+    localStorage.setItem('schema_version', '6');
+    const fixture = TestBed.createComponent(TransactionFormComponent);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const fill = (selector: string, value: string, event = 'input') => {
+      const el = root.querySelector<HTMLInputElement | HTMLSelectElement>(selector)!;
+      el.value = value;
+      el.dispatchEvent(new Event(event));
+    };
+    fill('#description', 'Almuerzo');
+    fill('#amount', '8000');
+    fill('#categoryId', '3', 'change');
+    fill('#accountId', 'cash', 'change');
+    fill('#date', '2025-01-15');
+    const repeat = root.querySelector<HTMLInputElement>('#repeat')!;
+    repeat.checked = true;
+    repeat.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    root.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+
+    expect(TestBed.inject(TransactionService).transactions().find(t => t.description === 'Almuerzo')?.accountId).toBe('cash');
+    expect(TestBed.inject(RecurringService).rules()[0].accountId).toBe('cash');
   });
 });

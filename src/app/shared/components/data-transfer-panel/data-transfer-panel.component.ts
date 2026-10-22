@@ -3,6 +3,7 @@ import { TransactionService } from '../../../core/services/transaction.service';
 import { StorageService } from '../../../core/services/storage.service';
 import { BudgetService } from '../../../core/services/budget.service';
 import { GoalService } from '../../../core/services/goal.service';
+import { AccountService } from '../../../core/services/account.service';
 import { RecurringService } from '../../../core/services/recurring.service';
 import { BackupData, parseBackup, toBackup, toCsv } from '../../../core/services/data-transfer';
 
@@ -66,6 +67,7 @@ export class DataTransferPanelComponent {
   private readonly budgets = inject(BudgetService);
   private readonly recurring = inject(RecurringService);
   private readonly goals = inject(GoalService);
+  private readonly accounts = inject(AccountService);
   private readonly storage = inject(StorageService);
 
   protected readonly buttonClass = BUTTON;
@@ -74,7 +76,7 @@ export class DataTransferPanelComponent {
   protected readonly isError = signal(false);
 
   exportCsv(): void {
-    download(`transacciones-${today()}.csv`, '﻿' + toCsv(this.tx.transactions(), this.tx.categories()), 'text/csv;charset=utf-8');
+    download(`transacciones-${today()}.csv`, '﻿' + toCsv(this.tx.transactions(), this.tx.categories(), this.accounts.accounts()), 'text/csv;charset=utf-8');
   }
 
   exportBackup(): void {
@@ -85,6 +87,7 @@ export class DataTransferPanelComponent {
         categories: this.tx.categories(),
         recurring: this.recurring.rules(),
         goals: this.goals.goals(),
+        accounts: this.accounts.accounts(),
       },
       this.storage.schemaVersion(),
     );
@@ -113,6 +116,7 @@ export class DataTransferPanelComponent {
     const backup = this.pendingImport();
     if (!backup) return;
     if (backup.categories) this.tx.replaceCategories(backup.categories);
+    if (backup.accounts) this.accounts.replaceAll(backup.accounts);
     this.tx.replaceAll(backup.transactions);
     if (backup.budgets) this.budgets.replaceAll(backup.budgets);
     if (backup.recurring) this.recurring.replaceAll(backup.recurring);

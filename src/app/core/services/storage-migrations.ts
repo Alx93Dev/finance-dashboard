@@ -1,4 +1,5 @@
 import { Account, DEFAULT_ACCOUNTS, MAIN_ACCOUNT_ID } from '../models/account.model';
+import { isCurrency } from '../models/currency.model';
 import { Budget } from '../models/budget.model';
 import { Category, DEFAULT_CATEGORIES } from '../models/category.model';
 import { Goal } from '../models/goal.model';
@@ -161,6 +162,13 @@ export const MIGRATIONS: Migration[] = [
             typeof t.description === 'string')
         : [];
       storage.set('transfers', transfers);
+    },
+  },  {
+    version: 8,
+    description: 'Give every account a currency, pesos for the existing ones',
+    migrate(storage) {
+      const accounts = storage.get<Partial<Account>[]>('accounts', []);
+      storage.set('accounts', accounts.map(a => (isCurrency(a.currency) ? a : { ...a, currency: 'CLP' })));
     },
   },
 ];

@@ -132,8 +132,8 @@ describe('TransactionsComponent', () => {
 
     it('should filter by account and name it in each row', async () => {
       localStorage.setItem('accounts', JSON.stringify([
-        { id: 'main', name: 'Cuenta corriente', initialBalance: 0 },
-        { id: 'cash', name: 'Efectivo', initialBalance: 0 },
+        { id: 'main', name: 'Cuenta corriente', initialBalance: 0, currency: 'CLP' },
+        { id: 'cash', name: 'Efectivo', initialBalance: 0, currency: 'CLP' },
       ]));
       localStorage.setItem('transactions', JSON.stringify(STORED.map(t => (t.id === 'c' ? { ...t, accountId: 'cash' } : t))));
       localStorage.setItem('schema_version', '6');

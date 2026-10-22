@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
+import { MoneyPipe } from '../../pipes/money.pipe';
 import { MAIN_ACCOUNT_ID } from '../../../core/models/account.model';
 import { AccountService } from '../../../core/services/account.service';
 import { TransactionService } from '../../../core/services/transaction.service';
@@ -21,7 +22,7 @@ type AmountMode = 'signed' | 'split';
 
 @Component({
   selector: 'app-statement-import',
-  imports: [CurrencyPipe, DatePipe],
+  imports: [DatePipe, MoneyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="mt-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700" aria-labelledby="statement-title">
@@ -129,7 +130,7 @@ type AmountMode = 'signed' | 'split';
                   <span class="text-gray-400 dark:text-gray-500 tabular-nums">{{ row.date | date:'dd/MM/yy' }}</span> {{ row.description }}
                 </span>
                 <span class="shrink-0 whitespace-nowrap tabular-nums font-medium" [class]="row.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'">
-                  {{ row.type === 'income' ? '+' : '-' }}{{ row.amount | currency:'$':'symbol':'1.0-0' }}
+                  {{ row.type === 'income' ? '+' : '-' }}{{ row.amount | money:(accounts.getById(accountId())?.currency ?? 'CLP') }}
                 </span>
               </li>
             }

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, linkedSignal, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
+import { MoneyPipe } from '../../shared/pipes/money.pipe';
 import { TransactionService } from '../../core/services/transaction.service';
 import { AccountService } from '../../core/services/account.service';
 import { TransactionFormComponent } from './transaction-form/transaction-form.component';
@@ -27,7 +28,7 @@ function normalize(text: string): string {
 
 @Component({
   selector: 'app-transactions',
-  imports: [CurrencyPipe, DatePipe, TransactionFormComponent, SampleDataBannerComponent, RecurringPanelComponent, DataTransferPanelComponent],
+  imports: [DatePipe, MoneyPipe, TransactionFormComponent, SampleDataBannerComponent, RecurringPanelComponent, DataTransferPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-5xl mx-auto px-4 py-8" [class.pb-24]="lastRemoved()" id="main-content">
@@ -176,7 +177,7 @@ function normalize(text: string): string {
                       class="text-sm font-semibold"
                       [class]="transaction.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'"
                     >
-                      {{ transaction.type === 'income' ? '+' : '-' }}{{ transaction.amount | currency:'$':'symbol':'1.0-0' }}
+                      {{ transaction.type === 'income' ? '+' : '-' }}{{ transaction.amount | money:(accounts.getById(transaction.accountId)?.currency ?? 'CLP') }}
                     </span>
                     <button
                       (click)="openEditForm(transaction)"

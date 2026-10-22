@@ -163,7 +163,7 @@ describe('StorageService', () => {
 
       const service = createService();
 
-      expect(service.get('accounts', null)).toEqual([{ id: 'main', name: 'Cuenta principal', initialBalance: 0 }]);
+      expect(service.get('accounts', null)).toEqual([{ id: 'main', name: 'Cuenta principal', initialBalance: 0, currency: 'CLP' }]);
       expect(service.get<{ accountId: string }[]>('transactions', []).map(t => t.accountId)).toEqual(['main']);
       expect(service.get<{ accountId: string }[]>('recurring', []).map(r => r.accountId)).toEqual(['main']);
     });
@@ -176,6 +176,19 @@ describe('StorageService', () => {
       localStorage.setItem('transfers', JSON.stringify([valid, { ...valid, id: 'u', toAccountId: 'main' }, { ...valid, id: 'v', amount: 0 }]));
 
       expect(createService().get('transfers', null)).toEqual([valid]);
+    });
+  });
+
+  describe('migration v8', () => {
+    it('should put existing accounts in pesos and keep valid currencies', () => {
+      localStorage.setItem(SCHEMA_VERSION_KEY, '7');
+      localStorage.setItem('accounts', JSON.stringify([
+        { id: 'main', name: 'Cuenta', initialBalance: 0 },
+        { id: 'usd', name: 'Dólares', initialBalance: 10, currency: 'USD' },
+        { id: 'odd', name: 'Rara', initialBalance: 0, currency: 'EUR' },
+      ]));
+
+      expect(createService().get<{ currency: string }[]>('accounts', []).map(a => a.currency)).toEqual(['CLP', 'USD', 'CLP']);
     });
   });
 });

@@ -15,8 +15,8 @@ describe('AccountService', () => {
     localStorage.clear();
     localStorage.setItem('transactions', JSON.stringify(STORED));
     localStorage.setItem('accounts', JSON.stringify([
-      { id: 'main', name: 'Cuenta corriente', initialBalance: 100000 },
-      { id: 'cash', name: 'Efectivo', initialBalance: 20000 },
+      { id: 'main', name: 'Cuenta corriente', initialBalance: 100000, currency: 'CLP' },
+      { id: 'cash', name: 'Efectivo', initialBalance: 20000, currency: 'CLP' },
     ]));
     localStorage.setItem('seeded_v3', 'true');
     localStorage.setItem('schema_version', '6');
@@ -33,10 +33,10 @@ describe('AccountService', () => {
 
   it('should add, rename and persist accounts', () => {
     const service = TestBed.inject(AccountService);
-    const card = service.add({ name: 'Tarjeta', initialBalance: -50000 });
-    service.update(card.id, { name: 'Tarjeta de crédito', initialBalance: -60000 });
+    const card = service.add({ name: 'Tarjeta', initialBalance: -50000, currency: 'CLP' });
+    service.update(card.id, { name: 'Tarjeta de crédito', initialBalance: -60000, currency: 'CLP' });
 
-    expect(service.getById(card.id)).toEqual({ id: card.id, name: 'Tarjeta de crédito', initialBalance: -60000 });
+    expect(service.getById(card.id)).toEqual({ id: card.id, name: 'Tarjeta de crédito', initialBalance: -60000, currency: 'CLP' });
     expect(JSON.parse(localStorage.getItem('accounts')!)).toHaveLength(3);
   });
 
@@ -55,6 +55,50 @@ describe('AccountService', () => {
 
   it('should not delete the main account', () => {
     expect(() => TestBed.inject(AccountService).remove('main')).toThrow('no se puede eliminar');
+  });
+
+  describe('currencies', () => {
+    beforeEach(() => {
+      localStorage.setItem('accounts', JSON.stringify([
+        { id: 'main', name: 'Cuenta corriente', initialBalance: 100000, currency: 'CLP' },
+        { id: 'cash', name: 'Dólares', initialBalance: 100, currency: 'USD' },
+      ]));
+      localStorage.setItem('exchange_rates', JSON.stringify({ USD: 900, UF: null, date: '2026-10-22', source: 'manual' }));
+    });
+
+    it('should keep each balance in its currency and total them in pesos', () => {
+      const service = TestBed.inject(AccountService);
+
+      expect(service.balances().map(b => [b.balance, b.balanceInClp])).toEqual([[650000, 650000], [-7900, -7110000]]);
+      expect(service.totalBalance()).toBe(650000 - 7110000);
+      expect(service.hasForeignCurrency()).toBe(true);
+      expect(service.missingRates()).toEqual([]);
+    });
+
+    it('should value transactions of foreign accounts in pesos for totals', () => {
+      const tx = TestBed.inject(TransactionService);
+
+      expect(tx.totalExpenses()).toBe(450000 + 8000 * 900);
+      expect(tx.transactions().find(t => t.id === 'c')!.amount).toBe(8000);
+    });
+
+    it('should ask for the received amount when a transfer changes currency', () => {
+      const service = TestBed.inject(AccountService);
+
+      expect(() => service.transfer({ fromAccountId: 'main', toAccountId: 'cash', amount: 90000, date: '2025-01-15', description: '' }))
+        .toThrow('cuánto llegó');
+      service.transfer({ fromAccountId: 'main', toAccountId: 'cash', amount: 90000, toAmount: 95, date: '2025-01-15', description: '' });
+
+      expect(service.balances().map(b => b.balance)).toEqual([560000, -7805]);
+    });
+
+    it('should report currencies without a known value', () => {
+      localStorage.setItem('exchange_rates', JSON.stringify({}));
+      const service = TestBed.inject(AccountService);
+
+      expect(service.missingRates()).toEqual(['USD']);
+      expect(service.totalBalance()).toBe(650000);
+    });
   });
 
   describe('transfers', () => {
@@ -89,7 +133,7 @@ describe('AccountService', () => {
 
     it('should drop transfers that would end up inside the main account when deleting', () => {
       const service = TestBed.inject(AccountService);
-      const card = service.add({ name: 'Tarjeta', initialBalance: 0 });
+      const card = service.add({ name: 'Tarjeta', initialBalance: 0, currency: 'CLP' });
       service.transfer({ fromAccountId: 'main', toAccountId: 'cash', amount: 1000, date: '2025-01-01', description: '' });
       service.transfer({ fromAccountId: 'cash', toAccountId: card.id, amount: 500, date: '2025-01-02', description: '' });
 

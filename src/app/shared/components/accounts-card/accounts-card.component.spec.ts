@@ -56,7 +56,7 @@ describe('AccountsCardComponent', () => {
 
   it('should warn before moving a deleted account\'s transactions to the main one', async () => {
     const { fixture, root, service } = await render();
-    const cash = service.add({ name: 'Efectivo', initialBalance: 0 });
+    const cash = service.add({ name: 'Efectivo', initialBalance: 0, currency: 'CLP' });
     TestBed.inject(TransactionService).add({
       description: 'Almuerzo', amount: 8000, categoryId: '3', date: '2025-01-12', type: 'expense', accountId: cash.id,
     });
@@ -91,14 +91,14 @@ describe('AccountsCardComponent', () => {
     const { fixture, root, service } = await render();
     expect(button(root, 'Transferir')).toBeUndefined();
 
-    service.add({ name: 'Efectivo', initialBalance: 0 });
+    service.add({ name: 'Efectivo', initialBalance: 0, currency: 'CLP' });
     await fixture.whenStable();
     expect(button(root, 'Transferir')).toBeDefined();
   });
 
   it('should record a transfer and list it', async () => {
     const { fixture, root, service } = await render();
-    service.add({ name: 'Efectivo', initialBalance: 0 });
+    service.add({ name: 'Efectivo', initialBalance: 0, currency: 'CLP' });
     await fixture.whenStable();
 
     button(root, 'Transferir').click();
@@ -121,7 +121,7 @@ describe('AccountsCardComponent', () => {
 
   it('should explain a transfer to the same account', async () => {
     const { fixture, root, service } = await render();
-    service.add({ name: 'Efectivo', initialBalance: 0 });
+    service.add({ name: 'Efectivo', initialBalance: 0, currency: 'CLP' });
     await fixture.whenStable();
 
     button(root, 'Transferir').click();

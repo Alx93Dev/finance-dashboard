@@ -46,7 +46,7 @@ export class BarChartComponent {
     effect(() => {
       const monthlyTotals: Record<string, { income: number; expense: number }> = {};
 
-      for (const transaction of this.transactionService.transactions()) {
+      for (const transaction of this.transactionService.valuedTransactions()) {
         const yearMonth = transaction.date.slice(0, 7);
         if (!monthlyTotals[yearMonth]) {
           monthlyTotals[yearMonth] = { income: 0, expense: 0 };

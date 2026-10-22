@@ -52,3 +52,8 @@ Thumbs.db
 .kiro/
 AGENTS.md
 .github/copilot-instructions.md
+
+# Playwright
+/test-results
+/playwright-report
+/blob-report

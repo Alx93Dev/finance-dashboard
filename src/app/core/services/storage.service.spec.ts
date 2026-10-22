@@ -52,13 +52,13 @@ describe('StorageService', () => {
 
     it('should leave data from a newer app version alone', () => {
       const service = createService();
-      localStorage.setItem(SCHEMA_VERSION_KEY, '5');
+      localStorage.setItem(SCHEMA_VERSION_KEY, '99');
       const log: number[] = [];
 
       service.runMigrations(recorder(log, 1, 2));
 
       expect(log).toEqual([]);
-      expect(service.schemaVersion()).toBe(5);
+      expect(service.schemaVersion()).toBe(99);
     });
   });
 
@@ -131,6 +131,23 @@ describe('StorageService', () => {
       localStorage.setItem('recurring', JSON.stringify([valid, { ...valid, id: 's', dayOfMonth: 0 }, { ...valid, id: 't', lastMonth: 'enero' }]));
 
       expect(createService().get('recurring', null)).toEqual([valid]);
+    });
+  });
+
+  describe('migration v5', () => {
+    it('should keep valid goals and drop malformed ones', () => {
+      const valid = { id: 'g', name: 'Viaje', target: 1000000, saved: 250000, deadline: '2025-12-31' };
+      const noDeadline = { ...valid, id: 'h', deadline: null };
+      localStorage.setItem(SCHEMA_VERSION_KEY, '4');
+      localStorage.setItem('goals', JSON.stringify([
+        valid,
+        noDeadline,
+        { ...valid, id: 'i', target: 0 },
+        { ...valid, id: 'j', saved: -1 },
+        { ...valid, id: 'k', deadline: 'diciembre' },
+      ]));
+
+      expect(createService().get('goals', null)).toEqual([valid, noDeadline]);
     });
   });
 });

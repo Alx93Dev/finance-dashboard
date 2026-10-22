@@ -1,6 +1,7 @@
 import { Budget } from '../models/budget.model';
 import { Recurring } from '../models/recurring.model';
 import { Category } from '../models/category.model';
+import { Goal } from '../models/goal.model';
 import { Transaction } from '../models/transaction.model';
 
 /** Marks a JSON file as a backup made by this app. */
@@ -17,6 +18,8 @@ export interface Backup {
   categories?: Category[];
   /** Missing in backups made before recurring transactions (schema version 3 or older). */
   recurring?: Recurring[];
+  /** Missing in backups made before savings goals (schema version 4 or older). */
+  goals?: Goal[];
 }
 
 export interface BackupData {
@@ -27,6 +30,8 @@ export interface BackupData {
   categories: Category[] | null;
   /** null when the backup predates recurring transactions, so current rules are kept. */
   recurring: Recurring[] | null;
+  /** null when the backup predates savings goals, so current goals are kept. */
+  goals: Goal[] | null;
 }
 
 const CSV_HEADER = ['Fecha', 'Descripción', 'Tipo', 'Categoría', 'Monto'];
@@ -52,7 +57,7 @@ export function toCsv(transactions: Transaction[], categories: Category[]): stri
 }
 
 export function toBackup(
-  data: { transactions: Transaction[]; budgets: Budget[]; categories: Category[]; recurring: Recurring[] },
+  data: { transactions: Transaction[]; budgets: Budget[]; categories: Category[]; recurring: Recurring[]; goals: Goal[] },
   schemaVersion: number,
   now = new Date(),
 ): Backup {
@@ -106,6 +111,24 @@ function parseRecurring(item: unknown): Recurring | null {
     dayOfMonth: day,
     lastMonth: r['lastMonth'],
   };
+}
+
+function parseGoal(item: unknown): Goal | null {
+  if (!item || typeof item !== 'object') return null;
+  const g = item as Record<string, unknown>;
+  const target = Number(g['target']);
+  const saved = Number(g['saved']);
+  const deadline = g['deadline'] ?? null;
+  if (
+    typeof g['id'] !== 'string' ||
+    typeof g['name'] !== 'string' ||
+    !Number.isFinite(target) || target <= 0 ||
+    !Number.isFinite(saved) || saved < 0 ||
+    (deadline !== null && (typeof deadline !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)))
+  ) {
+    return null;
+  }
+  return { id: g['id'], name: g['name'], target, saved, deadline: deadline as string | null };
 }
 
 /** Parses an optional list of the backup; undefined means the backup predates it. */
@@ -166,5 +189,6 @@ export function parseBackup(text: string, supportedVersion: number): BackupData 
   const budgets = parseOptionalList(backup.budgets, parseBudget, 'El respaldo tiene presupuestos dañados.');
   const categories = parseOptionalList(backup.categories, parseCategory, 'El respaldo tiene categorías dañadas.');
   const recurring = parseOptionalList(backup.recurring, parseRecurring, 'El respaldo tiene recurrentes dañadas.');
-  return { transactions: transactions as Transaction[], budgets, categories, recurring };
+  const goals = parseOptionalList(backup.goals, parseGoal, 'El respaldo tiene metas dañadas.');
+  return { transactions: transactions as Transaction[], budgets, categories, recurring, goals };
 }

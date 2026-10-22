@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { TransactionService } from '../../../core/services/transaction.service';
 import { StorageService } from '../../../core/services/storage.service';
 import { BudgetService } from '../../../core/services/budget.service';
+import { GoalService } from '../../../core/services/goal.service';
 import { RecurringService } from '../../../core/services/recurring.service';
 import { BackupData, parseBackup, toBackup, toCsv } from '../../../core/services/data-transfer';
 
@@ -64,6 +65,7 @@ export class DataTransferPanelComponent {
   protected readonly tx = inject(TransactionService);
   private readonly budgets = inject(BudgetService);
   private readonly recurring = inject(RecurringService);
+  private readonly goals = inject(GoalService);
   private readonly storage = inject(StorageService);
 
   protected readonly buttonClass = BUTTON;
@@ -82,6 +84,7 @@ export class DataTransferPanelComponent {
         budgets: this.budgets.budgets(),
         categories: this.tx.categories(),
         recurring: this.recurring.rules(),
+        goals: this.goals.goals(),
       },
       this.storage.schemaVersion(),
     );
@@ -113,6 +116,7 @@ export class DataTransferPanelComponent {
     this.tx.replaceAll(backup.transactions);
     if (backup.budgets) this.budgets.replaceAll(backup.budgets);
     if (backup.recurring) this.recurring.replaceAll(backup.recurring);
+    if (backup.goals) this.goals.replaceAll(backup.goals);
     this.pendingImport.set(null);
     this.showMessage(`Se restauraron ${backup.transactions.length} transacciones.`, false);
   }

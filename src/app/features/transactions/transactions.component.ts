@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, linkedSignal, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { TransactionService } from '../../core/services/transaction.service';
 import { TransactionFormComponent } from './transaction-form/transaction-form.component';
@@ -8,6 +8,9 @@ import { SampleDataBannerComponent } from '../../shared/components/sample-data-b
 import { Transaction } from '../../core/models/transaction.model';
 
 const UNDO_TIMEOUT_MS = 5000;
+
+/** Transactions shown per page of the list. */
+export const PAGE_SIZE = 20;
 
 type FilterType = 'all' | 'income' | 'expense';
 
@@ -57,7 +60,7 @@ function normalize(text: string): string {
         }
       </div>
 
-      <div class="flex flex-col sm:flex-row gap-2 mb-6">
+      <div class="flex flex-col sm:flex-row gap-2 mb-3">
         <label for="search" class="sr-only">Buscar transacciones</label>
         <input
           id="search"
@@ -82,6 +85,40 @@ function normalize(text: string): string {
         </select>
       </div>
 
+      <div class="flex flex-wrap items-end gap-2 mb-6">
+        <div>
+          <label for="date-from" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Desde</label>
+          <input
+            id="date-from"
+            type="date"
+            [value]="dateFrom()"
+            [max]="dateTo() || null"
+            (change)="dateFrom.set($any($event.target).value)"
+            class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          />
+        </div>
+        <div>
+          <label for="date-to" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hasta</label>
+          <input
+            id="date-to"
+            type="date"
+            [value]="dateTo()"
+            [min]="dateFrom() || null"
+            (change)="dateTo.set($any($event.target).value)"
+            class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          />
+        </div>
+        @if (hasFilters()) {
+          <button
+            type="button"
+            (click)="clearFilters()"
+            class="px-3 py-2 rounded-xl text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-500/10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+          >
+            Limpiar filtros
+          </button>
+        }
+      </div>
+
       <section aria-label="Lista de transacciones">
         <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
           @if (!hasTransactions()) {
@@ -97,11 +134,11 @@ function normalize(text: string): string {
             </div>
           } @else if (filteredTransactions().length === 0) {
             <p class="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
-              {{ searchTerm() || categoryFilter() ? 'Ninguna transacción coincide con la búsqueda' : 'No hay transacciones de este tipo' }}
+              {{ hasFilters() ? 'Ninguna transacción coincide con los filtros' : 'No hay transacciones de este tipo' }}
             </p>
           } @else {
             <ul>
-              @for (transaction of filteredTransactions(); track transaction.id; let last = $last) {
+              @for (transaction of pageTransactions(); track transaction.id; let last = $last) {
                 <li
                   [class]="'flex items-center justify-between px-6 py-4' + (!last ? ' border-b border-gray-50 dark:border-gray-800' : '')"
                 >
@@ -148,6 +185,27 @@ function normalize(text: string): string {
                 </li>
               }
             </ul>
+            @if (pageCount() > 1) {
+              <nav class="flex items-center justify-between gap-4 px-6 py-3 border-t border-gray-100 dark:border-gray-800" aria-label="Paginación">
+                <button
+                  type="button"
+                  (click)="page.set(currentPage() - 1)"
+                  [disabled]="currentPage() === 1"
+                  class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed dark:text-gray-300 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                >
+                  Anterior
+                </button>
+                <p class="text-sm text-gray-500 dark:text-gray-400 tabular-nums" aria-live="polite">Página {{ currentPage() }} de {{ pageCount() }}</p>
+                <button
+                  type="button"
+                  (click)="page.set(currentPage() + 1)"
+                  [disabled]="currentPage() === pageCount()"
+                  class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed dark:text-gray-300 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                >
+                  Siguiente
+                </button>
+              </nav>
+            }
           }
         </div>
       </section>
@@ -206,6 +264,13 @@ export class TransactionsComponent {
   protected readonly hasTransactions = computed(() => this.transactionService.transactions().length > 0);
   protected readonly searchTerm = signal('');
   protected readonly categoryFilter = signal('');
+  /** Inclusive date range as 'YYYY-MM-DD'; empty means open-ended. */
+  protected readonly dateFrom = signal('');
+  protected readonly dateTo = signal('');
+
+  protected readonly hasFilters = computed(() =>
+    !!(this.searchTerm().trim() || this.categoryFilter() || this.dateFrom() || this.dateTo())
+  );
 
   protected readonly categoryOptions = computed(() => {
     const filter = this.activeFilter();
@@ -217,14 +282,43 @@ export class TransactionsComponent {
     const filter = this.activeFilter();
     const categoryId = this.categoryFilter();
     const term = normalize(this.searchTerm().trim());
+    const from = this.dateFrom();
+    const to = this.dateTo();
     const filtered = this.transactionService.transactions().filter(t =>
       (filter === 'all' || t.type === filter) &&
       (!categoryId || t.categoryId === categoryId) &&
-      (!term || normalize(t.description).includes(term))
+      (!term || normalize(t.description).includes(term)) &&
+      (!from || t.date >= from) &&
+      (!to || t.date <= to)
     );
     // Most recent first; same-day transactions keep the order they were added in.
     return [...filtered].sort((a, b) => b.date.localeCompare(a.date));
   });
+
+  protected readonly pageCount = computed(() =>
+    Math.max(1, Math.ceil(this.filteredTransactions().length / PAGE_SIZE))
+  );
+
+  /** Current page, back to 1 whenever a filter changes. */
+  protected readonly page = linkedSignal({
+    source: () => [this.activeFilter(), this.categoryFilter(), this.searchTerm(), this.dateFrom(), this.dateTo()],
+    computation: () => 1,
+  });
+
+  /** Deleting the last item of the last page must not leave an empty page. */
+  protected readonly currentPage = computed(() => Math.min(this.page(), this.pageCount()));
+
+  protected readonly pageTransactions = computed(() => {
+    const page = this.currentPage();
+    return this.filteredTransactions().slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  });
+
+  protected clearFilters(): void {
+    this.searchTerm.set('');
+    this.categoryFilter.set('');
+    this.dateFrom.set('');
+    this.dateTo.set('');
+  }
 
   protected setTypeFilter(filter: FilterType): void {
     this.activeFilter.set(filter);

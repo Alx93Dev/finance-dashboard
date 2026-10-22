@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { StorageService } from '../../../core/services/storage.service';
-import { parseBackup, toBackup, toCsv } from '../../../core/services/data-transfer';
-import { Transaction } from '../../../core/models/transaction.model';
+import { BudgetService } from '../../../core/services/budget.service';
+import { BackupData, parseBackup, toBackup, toCsv } from '../../../core/services/data-transfer';
 
 function today(): string {
   const now = new Date();
@@ -42,7 +42,7 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
       @if (pendingImport(); as pending) {
         <div class="mt-3 p-3 rounded-lg bg-amber-50 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" role="alert">
           <p>
-            El respaldo tiene {{ pending.length }} transacciones y reemplazará las {{ tx.transactions().length }} actuales.
+            El respaldo tiene {{ pending.transactions.length }} transacciones y reemplazará las {{ tx.transactions().length }} actuales.
           </p>
           <div class="flex gap-2 mt-2">
             <button type="button" [class]="buttonClass" (click)="confirmImport()">Reemplazar</button>
@@ -61,10 +61,11 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
 })
 export class DataTransferPanelComponent {
   protected readonly tx = inject(TransactionService);
+  private readonly budgets = inject(BudgetService);
   private readonly storage = inject(StorageService);
 
   protected readonly buttonClass = BUTTON;
-  protected readonly pendingImport = signal<Transaction[] | null>(null);
+  protected readonly pendingImport = signal<BackupData | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly isError = signal(false);
 
@@ -73,7 +74,10 @@ export class DataTransferPanelComponent {
   }
 
   exportBackup(): void {
-    const backup = toBackup(this.tx.transactions(), this.storage.schemaVersion());
+    const backup = toBackup(
+      { transactions: this.tx.transactions(), budgets: this.budgets.budgets() },
+      this.storage.schemaVersion(),
+    );
     download(`respaldo-finanzas-${today()}.json`, JSON.stringify(backup, null, 2), 'application/json');
   }
 
@@ -96,11 +100,12 @@ export class DataTransferPanelComponent {
   }
 
   confirmImport(): void {
-    const transactions = this.pendingImport();
-    if (!transactions) return;
-    this.tx.replaceAll(transactions);
+    const backup = this.pendingImport();
+    if (!backup) return;
+    this.tx.replaceAll(backup.transactions);
+    if (backup.budgets) this.budgets.replaceAll(backup.budgets);
     this.pendingImport.set(null);
-    this.showMessage(`Se restauraron ${transactions.length} transacciones.`, false);
+    this.showMessage(`Se restauraron ${backup.transactions.length} transacciones.`, false);
   }
 
   private showMessage(text: string, isError: boolean): void {

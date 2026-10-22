@@ -1,3 +1,4 @@
+import { Budget } from '../models/budget.model';
 import { Transaction } from '../models/transaction.model';
 
 /** Minimal storage surface a migration needs; keeps migrations independent of Angular DI. */
@@ -52,6 +53,18 @@ export const MIGRATIONS: Migration[] = [
         });
       }
       storage.set('transactions', cleaned);
+    },
+  },
+  {
+    version: 2,
+    description: 'Add monthly budgets per category',
+    migrate(storage) {
+      const raw = storage.get<unknown>('budgets', []);
+      const budgets: Budget[] = Array.isArray(raw)
+        ? raw.filter((b): b is Budget =>
+            !!b && typeof b.categoryId === 'string' && Number.isFinite(b.amount) && b.amount > 0)
+        : [];
+      storage.set('budgets', budgets);
     },
   },
 ];

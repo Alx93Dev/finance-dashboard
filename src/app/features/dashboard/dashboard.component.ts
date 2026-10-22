@@ -5,11 +5,12 @@ import { TransactionService, percentChange } from '../../core/services/transacti
 import { SummaryCardComponent } from '../../shared/components/summary-card/summary-card.component';
 import { DonutChartComponent } from '../../shared/components/charts/donut-chart.component';
 import { BarChartComponent } from '../../shared/components/charts/bar-chart.component';
+import { BudgetsCardComponent } from '../../shared/components/budgets-card/budgets-card.component';
 import { SampleDataBannerComponent } from '../../shared/components/sample-data-banner/sample-data-banner.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [DatePipe, RouterLink, SampleDataBannerComponent, SummaryCardComponent, DonutChartComponent, BarChartComponent],
+  imports: [DatePipe, RouterLink, SampleDataBannerComponent, SummaryCardComponent, DonutChartComponent, BarChartComponent, BudgetsCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-5xl mx-auto px-4 py-8" id="main-content">
@@ -83,6 +84,10 @@ import { SampleDataBannerComponent } from '../../shared/components/sample-data-b
       <section aria-label="Gráficos" class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <app-donut-chart />
         <app-bar-chart />
+      </section>
+
+      <section aria-labelledby="budgets-heading" class="mt-6">
+        <app-budgets-card />
       </section>
     </main>
   `,

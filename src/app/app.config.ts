@@ -1,9 +1,10 @@
-import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { ApplicationConfig, LOCALE_ID, inject, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { registerLocaleData } from '@angular/common';
 import localeEsCL from '@angular/common/locales/es-CL';
 
 import { routes } from './app.routes';
+import { RecurringService } from './core/services/recurring.service';
 
 registerLocaleData(localeEsCL);
 
@@ -12,5 +13,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     { provide: LOCALE_ID, useValue: 'es-CL' },
+    // Add the recurring transactions that came due while the app was closed.
+    provideAppInitializer(() => { inject(RecurringService).generateDue(); }),
   ]
 };

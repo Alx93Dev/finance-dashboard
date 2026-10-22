@@ -36,7 +36,7 @@ describe('DataTransferPanelComponent', () => {
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
 
-    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }], categories: CATEGORIES }, 3)));
+    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }], categories: CATEGORIES, recurring: [] }, 4)));
     await fixture.whenStable();
     expect(root.textContent).toContain('El respaldo tiene 2 transacciones y reemplazará las 1 actuales.');
     expect(tx.transactions()).toEqual(STORED);
@@ -57,7 +57,7 @@ describe('DataTransferPanelComponent', () => {
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
 
-    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }], categories: CATEGORIES }, 3)));
+    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }], categories: CATEGORIES, recurring: [] }, 4)));
     await fixture.whenStable();
     button(root, 'Cancelar').click();
     await fixture.whenStable();

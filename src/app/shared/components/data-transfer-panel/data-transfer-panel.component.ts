@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { TransactionService } from '../../../core/services/transaction.service';
 import { StorageService } from '../../../core/services/storage.service';
 import { BudgetService } from '../../../core/services/budget.service';
+import { RecurringService } from '../../../core/services/recurring.service';
 import { BackupData, parseBackup, toBackup, toCsv } from '../../../core/services/data-transfer';
 
 function today(): string {
@@ -62,6 +63,7 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
 export class DataTransferPanelComponent {
   protected readonly tx = inject(TransactionService);
   private readonly budgets = inject(BudgetService);
+  private readonly recurring = inject(RecurringService);
   private readonly storage = inject(StorageService);
 
   protected readonly buttonClass = BUTTON;
@@ -75,7 +77,12 @@ export class DataTransferPanelComponent {
 
   exportBackup(): void {
     const backup = toBackup(
-      { transactions: this.tx.transactions(), budgets: this.budgets.budgets(), categories: this.tx.categories() },
+      {
+        transactions: this.tx.transactions(),
+        budgets: this.budgets.budgets(),
+        categories: this.tx.categories(),
+        recurring: this.recurring.rules(),
+      },
       this.storage.schemaVersion(),
     );
     download(`respaldo-finanzas-${today()}.json`, JSON.stringify(backup, null, 2), 'application/json');
@@ -105,6 +112,7 @@ export class DataTransferPanelComponent {
     if (backup.categories) this.tx.replaceCategories(backup.categories);
     this.tx.replaceAll(backup.transactions);
     if (backup.budgets) this.budgets.replaceAll(backup.budgets);
+    if (backup.recurring) this.recurring.replaceAll(backup.recurring);
     this.pendingImport.set(null);
     this.showMessage(`Se restauraron ${backup.transactions.length} transacciones.`, false);
   }

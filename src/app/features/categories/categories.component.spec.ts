@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { CategoriesComponent } from './categories.component';
 import { TransactionService } from '../../core/services/transaction.service';
 import { BudgetService } from '../../core/services/budget.service';
+import { RecurringService } from '../../core/services/recurring.service';
 import { Transaction } from '../../core/models/transaction.model';
 
 const STORED: Transaction[] = [
@@ -83,5 +84,21 @@ describe('CategoriesComponent', () => {
     await fixture.whenStable();
 
     expect(TestBed.inject(TransactionService).getCategoryById('6')).toBeUndefined();
+  });
+
+  it('should ask for a replacement when only a recurring rule uses the category', async () => {
+    const recurring = TestBed.inject(RecurringService);
+    recurring.addFrom({ description: 'Gimnasio', amount: 30000, categoryId: '6', type: 'expense', date: '2025-01-03' });
+    const fixture = TestBed.createComponent(CategoriesComponent);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+
+    button(root, 'Eliminar Salud').click();
+    await fixture.whenStable();
+    expect(root.textContent).toContain('«Salud» tiene 1 recurrente. Muévelas a:');
+
+    button(root, 'Mover y eliminar').click();
+    await fixture.whenStable();
+    expect(recurring.rules()[0].categoryId).toBe('3');
   });
 });

@@ -11,6 +11,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Transaction } from '../../../core/models/transaction.model';
 import { TransactionService } from '../../../core/services/transaction.service';
+import { RecurringService } from '../../../core/services/recurring.service';
 
 @Component({
   selector: 'app-transaction-form',
@@ -138,7 +139,7 @@ import { TransactionService } from '../../../core/services/transaction.service';
           </div>
 
           <!-- Fecha -->
-          <div class="mb-6">
+          <div class="mb-4">
             <label for="date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fecha
             </label>
@@ -155,6 +156,24 @@ import { TransactionService } from '../../../core/services/transaction.service';
               <p class="mt-1 text-xs text-red-500 dark:text-red-400" role="alert">La fecha es requerida</p>
             }
           </div>
+
+          @if (!isEditing()) {
+            <!-- Repetir -->
+            <div class="mb-6 flex items-start gap-2">
+              <input
+                id="repeat"
+                type="checkbox"
+                formControlName="repeat"
+                class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800"
+              />
+              <label for="repeat" class="text-sm text-gray-700 dark:text-gray-300">
+                Repetir cada mes
+                <span class="block text-xs text-gray-400 dark:text-gray-500">Se agregará sola el mismo día de cada mes.</span>
+              </label>
+            </div>
+          } @else {
+            <div class="mb-6"></div>
+          }
 
           <!-- Acciones -->
           <div class="flex gap-3">
@@ -181,6 +200,7 @@ import { TransactionService } from '../../../core/services/transaction.service';
 export class TransactionFormComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly transactionService = inject(TransactionService);
+  private readonly recurringService = inject(RecurringService);
 
   readonly editingTransaction = input<Transaction | null>(null);
   readonly saved = output<void>();
@@ -194,6 +214,7 @@ export class TransactionFormComponent implements OnInit {
     amount:      [null as unknown as number, [Validators.required, Validators.min(1)]],
     categoryId:  ['', Validators.required],
     date:        ['', Validators.required],
+    repeat:      [false],
   });
 
   private readonly selectedType = toSignal(this.form.controls.type.valueChanges, {
@@ -213,6 +234,7 @@ export class TransactionFormComponent implements OnInit {
         amount:      transaction.amount,
         categoryId:  transaction.categoryId,
         date:        transaction.date,
+        repeat:      false,
       });
     }
 
@@ -228,13 +250,16 @@ export class TransactionFormComponent implements OnInit {
   protected onSubmit(): void {
     if (this.form.invalid) return;
 
-    const { type, description, amount, categoryId, date } = this.form.getRawValue();
+    const { type, description, amount, categoryId, date, repeat } = this.form.getRawValue();
     const editingTransaction = this.editingTransaction();
 
     if (editingTransaction) {
       this.transactionService.update({ ...editingTransaction, type, description, amount, categoryId, date });
     } else {
       this.transactionService.add({ type, description, amount, categoryId, date });
+      if (repeat) {
+        this.recurringService.addFrom({ type, description, amount, categoryId, date });
+      }
     }
 
     this.saved.emit();

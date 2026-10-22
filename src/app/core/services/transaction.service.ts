@@ -97,6 +97,16 @@ export class TransactionService {
     });
   }
 
+  /** Puts back a previously removed transaction, keeping its id. */
+  restore(transaction: Transaction): void {
+    this.transactions.update(current => {
+      if (current.some(t => t.id === transaction.id)) return current;
+      const updated = [...current, transaction];
+      this.storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+  }
+
   remove(id: string): void {
     this.transactions.update(current => {
       const updated = current.filter(t => t.id !== id);

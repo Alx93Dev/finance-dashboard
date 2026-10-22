@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { TransactionService } from '../../core/services/transaction.service';
 import { TransactionFormComponent } from './transaction-form/transaction-form.component';
 import { Transaction } from '../../core/models/transaction.model';
+
+const UNDO_TIMEOUT_MS = 5000;
 
 type FilterType = 'all' | 'income' | 'expense';
 
@@ -21,7 +23,7 @@ function normalize(text: string): string {
   imports: [CurrencyPipe, DatePipe, TransactionFormComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <main class="max-w-5xl mx-auto px-4 py-8" id="main-content">
+    <main class="max-w-5xl mx-auto px-4 py-8" [class.pb-24]="lastRemoved()" id="main-content">
       <div class="mb-6 flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Transacciones</h1>
@@ -118,7 +120,7 @@ function normalize(text: string): string {
                       </svg>
                     </button>
                     <button
-                      (click)="removeTransaction(transaction.id)"
+                      (click)="removeTransaction(transaction)"
                       class="p-1.5 text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors rounded"
                       [attr.aria-label]="'Eliminar ' + transaction.description"
                     >
@@ -135,6 +137,22 @@ function normalize(text: string): string {
       </section>
     </main>
 
+    @if (lastRemoved(); as removed) {
+      <div
+        class="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-30 flex items-center justify-between gap-4 px-4 py-3 rounded-xl shadow-lg bg-gray-900 text-white text-sm dark:bg-gray-800 dark:border dark:border-gray-700"
+        role="status"
+      >
+        <span>Se eliminó «{{ removed.description }}»</span>
+        <button
+          type="button"
+          (click)="undoRemove()"
+          class="font-medium text-indigo-300 hover:text-indigo-200 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+        >
+          Deshacer
+        </button>
+      </div>
+    }
+
     @if (showForm()) {
       <app-transaction-form
         [editingTransaction]="editingTransaction()"
@@ -146,6 +164,14 @@ function normalize(text: string): string {
 })
 export class TransactionsComponent {
   private readonly transactionService = inject(TransactionService);
+  private undoTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Last deleted transaction, kept while the "Deshacer" toast is visible. */
+  protected readonly lastRemoved = signal<Transaction | null>(null);
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.undoTimer));
+  }
 
   protected readonly activeFilter = signal<FilterType>('all');
   protected readonly showForm = signal(false);
@@ -214,7 +240,18 @@ export class TransactionsComponent {
     return this.transactionService.getCategoryById(categoryId)?.color ?? '#ccc';
   }
 
-  protected removeTransaction(id: string): void {
-    this.transactionService.remove(id);
+  protected removeTransaction(transaction: Transaction): void {
+    this.transactionService.remove(transaction.id);
+    this.lastRemoved.set(transaction);
+    clearTimeout(this.undoTimer);
+    this.undoTimer = setTimeout(() => this.lastRemoved.set(null), UNDO_TIMEOUT_MS);
+  }
+
+  protected undoRemove(): void {
+    const removed = this.lastRemoved();
+    if (!removed) return;
+    this.transactionService.restore(removed);
+    this.lastRemoved.set(null);
+    clearTimeout(this.undoTimer);
   }
 }

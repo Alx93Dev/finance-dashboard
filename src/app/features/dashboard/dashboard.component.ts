@@ -7,11 +7,12 @@ import { DonutChartComponent } from '../../shared/components/charts/donut-chart.
 import { BarChartComponent } from '../../shared/components/charts/bar-chart.component';
 import { BalanceChartComponent } from '../../shared/components/charts/balance-chart.component';
 import { BudgetsCardComponent } from '../../shared/components/budgets-card/budgets-card.component';
+import { GoalsCardComponent } from '../../shared/components/goals-card/goals-card.component';
 import { SampleDataBannerComponent } from '../../shared/components/sample-data-banner/sample-data-banner.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [DatePipe, RouterLink, SampleDataBannerComponent, SummaryCardComponent, DonutChartComponent, BarChartComponent, BalanceChartComponent, BudgetsCardComponent],
+  imports: [DatePipe, RouterLink, SampleDataBannerComponent, SummaryCardComponent, DonutChartComponent, BarChartComponent, BalanceChartComponent, BudgetsCardComponent, GoalsCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-5xl mx-auto px-4 py-8" id="main-content">
@@ -88,9 +89,14 @@ import { SampleDataBannerComponent } from '../../shared/components/sample-data-b
         <app-balance-chart class="md:col-span-2" />
       </section>
 
-      <section aria-labelledby="budgets-heading" class="mt-6">
-        <app-budgets-card />
-      </section>
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <section aria-labelledby="budgets-heading">
+          <app-budgets-card />
+        </section>
+        <section aria-labelledby="goals-heading">
+          <app-goals-card />
+        </section>
+      </div>
     </main>
   `,
 })

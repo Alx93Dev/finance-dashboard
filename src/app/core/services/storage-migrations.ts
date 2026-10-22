@@ -1,5 +1,6 @@
 import { Budget } from '../models/budget.model';
 import { Category, DEFAULT_CATEGORIES } from '../models/category.model';
+import { Goal } from '../models/goal.model';
 import { Recurring } from '../models/recurring.model';
 import { Transaction } from '../models/transaction.model';
 
@@ -104,6 +105,22 @@ export const MIGRATIONS: Migration[] = [
             typeof r.lastMonth === 'string' && /^\d{4}-\d{2}$/.test(r.lastMonth))
         : [];
       storage.set('recurring', recurring);
+    },
+  },  {
+    version: 5,
+    description: 'Add savings goals',
+    migrate(storage) {
+      const raw = storage.get<unknown>('goals', []);
+      const goals: Goal[] = Array.isArray(raw)
+        ? raw.filter((g): g is Goal =>
+            !!g &&
+            typeof g.id === 'string' &&
+            typeof g.name === 'string' &&
+            Number.isFinite(g.target) && g.target > 0 &&
+            Number.isFinite(g.saved) && g.saved >= 0 &&
+            (g.deadline === null || (typeof g.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(g.deadline))))
+        : [];
+      storage.set('goals', goals);
     },
   },
 ];

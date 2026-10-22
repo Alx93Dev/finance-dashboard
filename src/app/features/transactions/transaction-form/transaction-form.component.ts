@@ -8,12 +8,17 @@ import {
   output,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Transaction } from '../../../core/models/transaction.model';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { RecurringService } from '../../../core/services/recurring.service';
 import { AccountService } from '../../../core/services/account.service';
 import { MAIN_ACCOUNT_ID } from '../../../core/models/account.model';
+
+/** Amounts can have decimals, e.g. in dollars or UF, but must be above zero. */
+function positive(control: AbstractControl): ValidationErrors | null {
+  return Number(control.value) > 0 ? null : { positive: true };
+}
 
 @Component({
   selector: 'app-transaction-form',
@@ -99,14 +104,15 @@ import { MAIN_ACCOUNT_ID } from '../../../core/models/account.model';
           <!-- Monto -->
           <div class="mb-4">
             <label for="amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Monto
+              Monto{{ currency() === 'CLP' ? '' : ' (' + currency() + ')' }}
             </label>
             <input
               id="amount"
               type="number"
               formControlName="amount"
               placeholder="0"
-              min="1"
+              min="0"
+              step="any"
               class="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               [class]="amountInvalid()
                 ? 'border-red-300 bg-red-50 dark:border-red-500/60 dark:bg-red-950/40 dark:text-gray-100'
@@ -232,7 +238,7 @@ export class TransactionFormComponent implements OnInit {
   protected readonly form = this.fb.nonNullable.group({
     type:        ['expense' as 'income' | 'expense', Validators.required],
     description: ['', [Validators.required, Validators.minLength(1)]],
-    amount:      [null as unknown as number, [Validators.required, Validators.min(1)]],
+    amount:      [null as unknown as number, [Validators.required, positive]],
     categoryId:  ['', Validators.required],
     date:        ['', Validators.required],
     accountId:   [MAIN_ACCOUNT_ID, Validators.required],
@@ -242,6 +248,13 @@ export class TransactionFormComponent implements OnInit {
   private readonly selectedType = toSignal(this.form.controls.type.valueChanges, {
     initialValue: this.form.controls.type.value,
   });
+
+  private readonly selectedAccount = toSignal(this.form.controls.accountId.valueChanges, {
+    initialValue: this.form.controls.accountId.value,
+  });
+
+  /** Currency of the chosen account, which the amount is in. */
+  protected readonly currency = computed(() => this.accounts.getById(this.selectedAccount())?.currency ?? 'CLP');
 
   protected readonly filteredCategories = computed(() =>
     this.transactionService.categories().filter(c => c.type === this.selectedType())

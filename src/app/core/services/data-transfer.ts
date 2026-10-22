@@ -1,4 +1,5 @@
 import { Account, DEFAULT_ACCOUNTS, MAIN_ACCOUNT_ID } from '../models/account.model';
+import { isCurrency } from '../models/currency.model';
 import { Budget } from '../models/budget.model';
 import { Recurring } from '../models/recurring.model';
 import { Category } from '../models/category.model';
@@ -44,17 +45,17 @@ export interface BackupData {
   transfers: Transfer[] | null;
 }
 
-const CSV_HEADER = ['Fecha', 'Descripción', 'Tipo', 'Categoría', 'Cuenta', 'Monto'];
+const CSV_HEADER = ['Fecha', 'Descripción', 'Tipo', 'Categoría', 'Cuenta', 'Monto', 'Moneda'];
 
 function csvField(value: string | number): string {
   const text = String(value);
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-/** Transactions as CSV, oldest first, with category and account names instead of ids. */
+/** Transactions as CSV, oldest first, with category and account names instead of ids and each amount's currency. */
 export function toCsv(transactions: Transaction[], categories: Category[], accounts: Account[] = DEFAULT_ACCOUNTS): string {
   const names = new Map(categories.map(c => [c.id, c.name]));
-  const accountNames = new Map(accounts.map(a => [a.id, a.name]));
+  const accountsById = new Map(accounts.map(a => [a.id, a]));
   const rows = [...transactions]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(t => [
@@ -62,8 +63,9 @@ export function toCsv(transactions: Transaction[], categories: Category[], accou
       t.description,
       t.type === 'income' ? 'Ingreso' : 'Gasto',
       names.get(t.categoryId) ?? '',
-      accountNames.get(t.accountId) ?? '',
+      accountsById.get(t.accountId)?.name ?? '',
       t.amount,
+      accountsById.get(t.accountId)?.currency ?? 'CLP',
     ]);
   return [CSV_HEADER, ...rows].map(row => row.map(csvField).join(',')).join('\r\n');
 }
@@ -149,7 +151,10 @@ function parseAccount(item: unknown): Account | null {
   const a = item as Record<string, unknown>;
   const initialBalance = Number(a['initialBalance']);
   if (typeof a['id'] !== 'string' || typeof a['name'] !== 'string' || !Number.isFinite(initialBalance)) return null;
-  return { id: a['id'], name: a['name'], initialBalance };
+  // Backups from before multiple currencies (schema version 7 or older) are all in pesos.
+  const currency = a['currency'] === undefined ? 'CLP' : a['currency'];
+  if (!isCurrency(currency)) return null;
+  return { id: a['id'], name: a['name'], initialBalance, currency };
 }
 
 function parseTransfer(item: unknown): Transfer | null {
@@ -167,7 +172,7 @@ function parseTransfer(item: unknown): Transfer | null {
   ) {
     return null;
   }
-  return {
+  const transfer: Transfer = {
     id: t['id'],
     fromAccountId: t['fromAccountId'],
     toAccountId: t['toAccountId'],
@@ -175,6 +180,12 @@ function parseTransfer(item: unknown): Transfer | null {
     date: t['date'],
     description: t['description'],
   };
+  if (t['toAmount'] !== undefined) {
+    const toAmount = Number(t['toAmount']);
+    if (!Number.isFinite(toAmount) || toAmount <= 0) return null;
+    transfer.toAmount = toAmount;
+  }
+  return transfer;
 }
 
 /** Parses an optional list of the backup; undefined means the backup predates it. */

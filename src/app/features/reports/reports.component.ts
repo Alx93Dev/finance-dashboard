@@ -146,7 +146,7 @@ export class ReportsComponent {
   protected readonly hasNewer = computed(() => this.yearIndex() > 0);
 
   protected readonly report = computed(() =>
-    this.years().length === 0 ? null : yearReport(this.tx.transactions(), this.tx.categories(), this.year())
+    this.years().length === 0 ? null : yearReport(this.tx.valuedTransactions(), this.tx.categories(), this.year())
   );
 
   /** Moves through the years that have data; +1 is older. */

@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
+import { MoneyPipe } from '../../pipes/money.pipe';
+import { AccountService } from '../../../core/services/account.service';
 import { RecurringService } from '../../../core/services/recurring.service';
 import { TransactionService } from '../../../core/services/transaction.service';
 
 @Component({
   selector: 'app-recurring-panel',
-  imports: [CurrencyPipe],
+  imports: [MoneyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (recurring.rules().length > 0) {
@@ -26,7 +27,7 @@ import { TransactionService } from '../../../core/services/transaction.service';
                   class="text-sm font-semibold tabular-nums"
                   [class]="rule.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'"
                 >
-                  {{ rule.type === 'income' ? '+' : '-' }}{{ rule.amount | currency:'$':'symbol':'1.0-0' }}
+                  {{ rule.type === 'income' ? '+' : '-' }}{{ rule.amount | money:(accounts.getById(rule.accountId)?.currency ?? 'CLP') }}
                 </span>
                 <button
                   type="button"
@@ -47,6 +48,7 @@ import { TransactionService } from '../../../core/services/transaction.service';
 export class RecurringPanelComponent {
   protected readonly recurring = inject(RecurringService);
   private readonly tx = inject(TransactionService);
+  protected readonly accounts = inject(AccountService);
 
   protected categoryName(categoryId: string): string {
     return this.tx.getCategoryById(categoryId)?.name ?? '—';

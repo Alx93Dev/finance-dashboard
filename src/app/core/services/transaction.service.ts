@@ -1,8 +1,10 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, Injector, computed, inject, signal } from '@angular/core';
 import { Transaction } from '../models/transaction.model';
 import { Category, DEFAULT_CATEGORIES } from '../models/category.model';
 import { MAIN_ACCOUNT_ID } from '../models/account.model';
 import { StorageService } from './storage.service';
+import { ExchangeRateService } from './exchange-rate.service';
+import { AccountService } from './account.service';
 
 const SEED_DATA: Omit<Transaction, 'id'>[] = [
   { description: 'Sueldo enero',       amount: 1200000, categoryId: '1', date: '2025-01-31', type: 'income',  accountId: MAIN_ACCOUNT_ID },
@@ -53,23 +55,38 @@ function currentMonth(): string {
 @Injectable({ providedIn: 'root' })
 export class TransactionService {
   private readonly storage = inject(StorageService);
+  private readonly rates = inject(ExchangeRateService);
+  private readonly injector = inject(Injector);
 
   readonly transactions = signal<Transaction[]>(
     this.storage.get<Transaction[]>(STORAGE_KEY, [])
   );
+
+  /**
+   * Transactions with every amount in pesos, for totals across accounts.
+   * Amounts in a currency whose value isn't known yet count as 0.
+   */
+  readonly valuedTransactions = computed<Transaction[]>(() => {
+    // Looked up lazily: AccountService itself depends on this service.
+    const accounts = this.injector.get(AccountService);
+    return this.transactions().map(t => {
+      const currency = accounts.getById(t.accountId)?.currency ?? 'CLP';
+      return currency === 'CLP' ? t : { ...t, amount: this.rates.toClp(t.amount, currency) };
+    });
+  });
 
   readonly categories = signal<Category[]>(
     this.storage.get<Category[]>(CATEGORIES_KEY, DEFAULT_CATEGORIES)
   );
 
   readonly totalIncome = computed(() =>
-    this.transactions()
+    this.valuedTransactions()
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0)
   );
 
   readonly totalExpenses = computed(() =>
-    this.transactions()
+    this.valuedTransactions()
       .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + t.amount, 0)
   );
@@ -84,7 +101,7 @@ export class TransactionService {
 
   readonly monthTransactions = computed(() => {
     const month = this.selectedMonth();
-    return this.transactions().filter(t => t.date.startsWith(month));
+    return this.valuedTransactions().filter(t => t.date.startsWith(month));
   });
 
   readonly monthIncome = computed(() =>
@@ -103,7 +120,7 @@ export class TransactionService {
 
   private readonly previousMonthTransactions = computed(() => {
     const month = shiftMonth(this.selectedMonth(), -1);
-    return this.transactions().filter(t => t.date.startsWith(month));
+    return this.valuedTransactions().filter(t => t.date.startsWith(month));
   });
 
   readonly previousMonthIncome = computed(() =>

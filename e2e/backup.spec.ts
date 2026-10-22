@@ -18,7 +18,7 @@ test('downloads a backup and restores it', async ({ page }) => {
 
   await page.locator('input[type="file"][accept^=".json"]').setInputFiles(path);
   await page.getByRole('button', { name: 'Reemplazar' }).click();
-  await expect(page.getByRole('status')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Tus datos' }).getByRole('status')).toContainText('Se restauraron');
   await expect(transactionRow(page, 'Gimnasio')).toContainText('-$29.990');
 });
 

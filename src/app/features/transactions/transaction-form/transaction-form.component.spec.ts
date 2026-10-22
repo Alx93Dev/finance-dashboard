@@ -102,8 +102,8 @@ describe('TransactionFormComponent', () => {
 
   it('should save the transaction and its recurring rule in the chosen account', async () => {
     localStorage.setItem('accounts', JSON.stringify([
-      { id: 'main', name: 'Cuenta corriente', initialBalance: 0 },
-      { id: 'cash', name: 'Efectivo', initialBalance: 0 },
+      { id: 'main', name: 'Cuenta corriente', initialBalance: 0, currency: 'CLP' },
+      { id: 'cash', name: 'Efectivo', initialBalance: 0, currency: 'CLP' },
     ]));
     localStorage.setItem('schema_version', '6');
     const fixture = TestBed.createComponent(TransactionFormComponent);

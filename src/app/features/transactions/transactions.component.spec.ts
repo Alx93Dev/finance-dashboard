@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { TransactionsComponent } from './transactions.component';
+import { PAGE_SIZE, TransactionsComponent } from './transactions.component';
 import { Transaction } from '../../core/models/transaction.model';
 
 const STORED: Transaction[] = [
@@ -119,7 +119,96 @@ describe('TransactionsComponent', () => {
 
       await search(fixture, root, 'zzz');
       expect(descriptions(root)).toEqual([]);
-      expect(root.textContent).toContain('Ninguna transacción coincide con la búsqueda');
+      expect(root.textContent).toContain('Ninguna transacción coincide con los filtros');
+    });
+  });
+
+  describe('date range and pagination', () => {
+    async function render() {
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      return { fixture, root: fixture.nativeElement as HTMLElement };
+    }
+
+    async function setDate(fixture: { whenStable(): Promise<unknown> }, root: HTMLElement, id: string, value: string) {
+      const input = root.querySelector<HTMLInputElement>(id)!;
+      input.value = value;
+      input.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+    }
+
+    function button(root: HTMLElement, label: string): HTMLButtonElement | undefined {
+      return Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+        .find(b => b.textContent!.trim() === label);
+    }
+
+    function seedMany(count: number): void {
+      const many: Transaction[] = Array.from({ length: count }, (_, i) => ({
+        id: `t${i}`,
+        description: `Gasto ${i + 1}`,
+        amount: 1000,
+        categoryId: '4',
+        date: `2025-03-${String(28 - (i % 28)).padStart(2, '0')}`,
+        type: 'expense',
+      }));
+      localStorage.setItem('transactions', JSON.stringify(many));
+    }
+
+    it('should keep only transactions within the inclusive range', async () => {
+      const { fixture, root } = await render();
+
+      await setDate(fixture, root, '#date-from', '2025-01-01');
+      expect(descriptions(root)).toEqual(['Sueldo', 'Uber', 'Arriendo']);
+
+      await setDate(fixture, root, '#date-to', '2025-01-12');
+      expect(descriptions(root)).toEqual(['Uber', 'Arriendo']);
+      expect(root.textContent).toContain('2 registros');
+    });
+
+    it('should clear every filter at once', async () => {
+      const { fixture, root } = await render();
+      expect(button(root, 'Limpiar filtros')).toBeUndefined();
+
+      await setDate(fixture, root, '#date-to', '2024-12-31');
+      expect(descriptions(root)).toEqual(['Freelance']);
+
+      button(root, 'Limpiar filtros')!.click();
+      await fixture.whenStable();
+      expect(descriptions(root)).toEqual(['Sueldo', 'Uber', 'Arriendo', 'Freelance']);
+      expect(root.querySelector<HTMLInputElement>('#date-to')!.value).toBe('');
+      expect(button(root, 'Limpiar filtros')).toBeUndefined();
+    });
+
+    it('should not paginate short lists', async () => {
+      const { root } = await render();
+      expect(root.querySelector('[aria-label="Paginación"]')).toBeNull();
+    });
+
+    it('should split long lists into pages', async () => {
+      seedMany(PAGE_SIZE + 5);
+      const { fixture, root } = await render();
+
+      expect(descriptions(root).length).toBe(PAGE_SIZE);
+      expect(root.textContent).toContain('Página 1 de 2');
+      expect(button(root, 'Anterior')!.disabled).toBe(true);
+
+      button(root, 'Siguiente')!.click();
+      await fixture.whenStable();
+      expect(descriptions(root).length).toBe(5);
+      expect(root.textContent).toContain('Página 2 de 2');
+      expect(button(root, 'Siguiente')!.disabled).toBe(true);
+    });
+
+    it('should go back to the first page when a filter changes', async () => {
+      seedMany(PAGE_SIZE * 3);
+      const { fixture, root } = await render();
+
+      button(root, 'Siguiente')!.click();
+      await fixture.whenStable();
+      expect(root.textContent).toContain('Página 2 de 3');
+
+      await setDate(fixture, root, '#date-from', '2025-03-02');
+      expect(root.textContent).toContain('Página 1 de');
     });
   });
 

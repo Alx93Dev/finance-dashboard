@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { TransactionService } from '../../core/services/transaction.service';
+import { TransactionService, percentChange } from '../../core/services/transaction.service';
 import { SummaryCardComponent } from '../../shared/components/summary-card/summary-card.component';
 import { DonutChartComponent } from '../../shared/components/charts/donut-chart.component';
 import { BarChartComponent } from '../../shared/components/charts/bar-chart.component';
@@ -51,16 +51,20 @@ import { SampleDataBannerComponent } from '../../shared/components/sample-data-b
           <app-summary-card
             label="Ingresos"
             [amount]="tx.monthIncome()"
+            [change]="change(tx.monthIncome(), tx.previousMonthIncome())"
             colorClass="text-emerald-600 dark:text-emerald-400"
           />
           <app-summary-card
             label="Gastos"
             [amount]="tx.monthExpenses()"
+            [change]="change(tx.monthExpenses(), tx.previousMonthExpenses())"
+            [higherIsBetter]="false"
             colorClass="text-red-500 dark:text-red-400"
           />
           <app-summary-card
             label="Balance"
             [amount]="tx.monthBalance()"
+            [change]="change(tx.monthBalance(), tx.previousMonthBalance())"
             [colorClass]="tx.monthBalance() >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-red-600 dark:text-red-400'"
           />
         </div>
@@ -85,5 +89,9 @@ import { SampleDataBannerComponent } from '../../shared/components/sample-data-b
 })
 export class DashboardComponent {
   protected readonly tx = inject(TransactionService);
+
+  protected change(current: number, previous: number): number | null {
+    return this.tx.hasPreviousMonth() ? percentChange(current, previous) : null;
+  }
 }
 

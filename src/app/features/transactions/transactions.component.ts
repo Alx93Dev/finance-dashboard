@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signa
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { TransactionService } from '../../core/services/transaction.service';
 import { TransactionFormComponent } from './transaction-form/transaction-form.component';
+import { DataTransferPanelComponent } from '../../shared/components/data-transfer-panel/data-transfer-panel.component';
 import { SampleDataBannerComponent } from '../../shared/components/sample-data-banner/sample-data-banner.component';
 import { Transaction } from '../../core/models/transaction.model';
 
@@ -21,7 +22,7 @@ function normalize(text: string): string {
 
 @Component({
   selector: 'app-transactions',
-  imports: [CurrencyPipe, DatePipe, TransactionFormComponent, SampleDataBannerComponent],
+  imports: [CurrencyPipe, DatePipe, TransactionFormComponent, SampleDataBannerComponent, DataTransferPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-5xl mx-auto px-4 py-8" [class.pb-24]="lastRemoved()" id="main-content">
@@ -149,6 +150,8 @@ function normalize(text: string): string {
           }
         </div>
       </section>
+
+      <app-data-transfer-panel />
     </main>
 
     @if (lastRemoved(); as removed) {

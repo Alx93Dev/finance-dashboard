@@ -134,4 +134,19 @@ describe('AccountsCardComponent', () => {
     expect(root.querySelector('[role="alert"]')!.textContent).toContain('Elige dos cuentas distintas.');
     expect(service.transfers()).toEqual([]);
   });
+
+  it('should add an account straight from the card', async () => {
+    const { fixture, root, service } = await render();
+
+    button(root, 'Agregar cuenta').click();
+    await fixture.whenStable();
+    const names = inputs(root, 'account-name-');
+    expect(names).toHaveLength(2);
+    expect(document.activeElement).toBe(names[1]);
+    names[1].value = 'Tarjeta';
+    button(root, 'Guardar').click();
+    await fixture.whenStable();
+
+    expect(service.accounts().map(a => a.name)).toEqual(['Cuenta principal', 'Tarjeta']);
+  });
 });

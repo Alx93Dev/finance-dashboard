@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { MAIN_ACCOUNT_ID } from '../../../core/models/account.model';
 import { AccountService } from '../../../core/services/account.service';
@@ -156,6 +156,7 @@ interface Draft {
         @if (!accounts.hasSeveral()) {
           <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">Agrega más cuentas, como efectivo o tarjeta, para ver el saldo de cada una.</p>
         }
+        <button type="button" [class]="buttonClass + ' mt-3'" (click)="startAdding()">Agregar cuenta</button>
         @if (latestTransfers().length > 0) {
           <h3 id="transfers-heading" class="mt-5 mb-2 text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Últimas transferencias</h3>
           <ul class="space-y-2" aria-labelledby="transfers-heading">
@@ -188,6 +189,8 @@ interface Draft {
 })
 export class AccountsCardComponent {
   protected readonly accounts = inject(AccountService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   protected readonly buttonClass = BUTTON;
   protected readonly inputClass = INPUT;
@@ -243,7 +246,16 @@ export class AccountsCardComponent {
   }
 
   protected addRow(): void {
-    this.drafts.update(rows => [...(rows ?? []), { key: this.nextKey++, id: null, name: '', initialBalance: 0, removed: false }]);
+    const key = this.nextKey++;
+    this.drafts.update(rows => [...(rows ?? []), { key, id: null, name: '', initialBalance: 0, removed: false }]);
+    // Focus the new name field once it is rendered.
+    afterNextRender(() => this.host.nativeElement.querySelector<HTMLInputElement>(`#account-name-${key}`)?.focus(), { injector: this.injector });
+  }
+
+  /** Opens the edit form with an empty row for a new account. */
+  protected startAdding(): void {
+    this.startEditing();
+    this.addRow();
   }
 
   protected patch(key: number, changes: Partial<Draft>): void {

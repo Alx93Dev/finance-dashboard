@@ -77,13 +77,31 @@ describe('StorageService', () => {
         { id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income' },
         { id: 'b', description: 'Uber', amount: 1800, categoryId: '4', date: '2025-01-12', type: 'expense' },
       ]);
-      expect(service.schemaVersion()).toBe(1);
+      expect(service.schemaVersion()).toBe(Math.max(...MIGRATIONS.map(m => m.version)));
     });
 
     it('should reset transactions that are not a list', () => {
       localStorage.setItem('transactions', JSON.stringify({ oops: true }));
 
       expect(createService().get('transactions', null)).toEqual([]);
+    });
+  });
+
+  describe('migration v2', () => {
+    it('should create an empty budget list', () => {
+      expect(createService().get('budgets', null)).toEqual([]);
+    });
+
+    it('should keep valid budgets and drop malformed ones', () => {
+      localStorage.setItem(SCHEMA_VERSION_KEY, '1');
+      localStorage.setItem('budgets', JSON.stringify([
+        { categoryId: '3', amount: 200000 },
+        { categoryId: '4', amount: 0 },
+        { amount: 1000 },
+        null,
+      ]));
+
+      expect(createService().get('budgets', null)).toEqual([{ categoryId: '3', amount: 200000 }]);
     });
   });
 });

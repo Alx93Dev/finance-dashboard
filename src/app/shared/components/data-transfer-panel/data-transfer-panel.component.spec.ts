@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { DataTransferPanelComponent } from './data-transfer-panel.component';
+import { BudgetService } from '../../../core/services/budget.service';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { toBackup } from '../../../core/services/data-transfer';
 import { Transaction } from '../../../core/models/transaction.model';
@@ -32,7 +33,7 @@ describe('DataTransferPanelComponent', () => {
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
 
-    fixture.componentInstance.loadBackup(JSON.stringify(toBackup(BACKUP, 1)));
+    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }] }, 2)));
     await fixture.whenStable();
     expect(root.textContent).toContain('El respaldo tiene 2 transacciones y reemplazará las 1 actuales.');
     expect(tx.transactions()).toEqual(STORED);
@@ -42,6 +43,7 @@ describe('DataTransferPanelComponent', () => {
     expect(tx.transactions()).toEqual(BACKUP);
     expect(JSON.parse(localStorage.getItem('transactions')!)).toEqual(BACKUP);
     expect(tx.selectedMonth()).toBe('2025-03');
+    expect(TestBed.inject(BudgetService).budgets()).toEqual([{ categoryId: '4', amount: 50000 }]);
     expect(root.textContent).toContain('Se restauraron 2 transacciones.');
   });
 
@@ -51,7 +53,7 @@ describe('DataTransferPanelComponent', () => {
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
 
-    fixture.componentInstance.loadBackup(JSON.stringify(toBackup(BACKUP, 1)));
+    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }] }, 2)));
     await fixture.whenStable();
     button(root, 'Cancelar').click();
     await fixture.whenStable();

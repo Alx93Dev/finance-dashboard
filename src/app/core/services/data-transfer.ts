@@ -1,3 +1,4 @@
+import { Budget } from '../models/budget.model';
 import { Category } from '../models/category.model';
 import { Transaction } from '../models/transaction.model';
 
@@ -9,6 +10,14 @@ export interface Backup {
   schemaVersion: number;
   exportedAt: string;
   transactions: Transaction[];
+  /** Missing in backups made before budgets existed (schema version 1). */
+  budgets?: Budget[];
+}
+
+export interface BackupData {
+  transactions: Transaction[];
+  /** null when the backup predates budgets, so current budgets are kept. */
+  budgets: Budget[] | null;
 }
 
 const CSV_HEADER = ['Fecha', 'Descripción', 'Tipo', 'Categoría', 'Monto'];
@@ -33,8 +42,20 @@ export function toCsv(transactions: Transaction[], categories: Category[]): stri
   return [CSV_HEADER, ...rows].map(row => row.map(csvField).join(',')).join('\r\n');
 }
 
-export function toBackup(transactions: Transaction[], schemaVersion: number, now = new Date()): Backup {
-  return { app: BACKUP_APP_ID, schemaVersion, exportedAt: now.toISOString(), transactions };
+export function toBackup(
+  data: { transactions: Transaction[]; budgets: Budget[] },
+  schemaVersion: number,
+  now = new Date(),
+): Backup {
+  return { app: BACKUP_APP_ID, schemaVersion, exportedAt: now.toISOString(), ...data };
+}
+
+function parseBudget(item: unknown): Budget | null {
+  if (!item || typeof item !== 'object') return null;
+  const b = item as Record<string, unknown>;
+  const amount = Number(b['amount']);
+  if (typeof b['categoryId'] !== 'string' || !Number.isFinite(amount) || amount <= 0) return null;
+  return { categoryId: b['categoryId'], amount };
 }
 
 function parseTransaction(item: unknown): Transaction | null {
@@ -66,7 +87,7 @@ function parseTransaction(item: unknown): Transaction | null {
  * Reads a backup file's text. Throws an Error with a message for the user when
  * the file is not a backup this app can restore.
  */
-export function parseBackup(text: string, supportedVersion: number): Transaction[] {
+export function parseBackup(text: string, supportedVersion: number): BackupData {
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -84,5 +105,13 @@ export function parseBackup(text: string, supportedVersion: number): Transaction
   if (transactions.some(t => t === null)) {
     throw new Error('El respaldo tiene transacciones dañadas.');
   }
-  return transactions as Transaction[];
+  let budgets: Budget[] | null = null;
+  if (backup.budgets !== undefined) {
+    const parsed = Array.isArray(backup.budgets) ? backup.budgets.map(parseBudget) : [null];
+    if (parsed.some(b => b === null)) {
+      throw new Error('El respaldo tiene presupuestos dañados.');
+    }
+    budgets = parsed as Budget[];
+  }
+  return { transactions: transactions as Transaction[], budgets };
 }

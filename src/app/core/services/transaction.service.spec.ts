@@ -259,6 +259,51 @@ describe('TransactionService', () => {
     });
   });
 
+  describe('categories', () => {
+    const USED: Transaction[] = [
+      { id: 'a', description: 'Uber',  amount: 18000, categoryId: '4', date: '2025-01-12', type: 'expense' },
+      { id: 'b', description: 'Metro', amount: 900,   categoryId: '4', date: '2025-01-13', type: 'expense' },
+    ];
+
+    beforeEach(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(USED));
+      localStorage.setItem(SEEDED_KEY, 'true');
+    });
+
+    it('should add, rename and recolor categories and persist them', () => {
+      const service = createService();
+      const pets = service.addCategory({ name: 'Mascotas', type: 'expense', color: '#ec4899' });
+      service.updateCategory('4', { name: 'Movilización', color: '#000000' });
+
+      const saved = JSON.parse(localStorage.getItem('categories')!);
+      expect(saved).toContainEqual(pets);
+      expect(saved).toContainEqual({ id: '4', name: 'Movilización', type: 'expense', color: '#000000' });
+    });
+
+    it('should move transactions to the replacement when deleting a used category', () => {
+      const service = createService();
+      service.removeCategory('4', '8');
+
+      expect(service.getCategoryById('4')).toBeUndefined();
+      expect(stored().map(t => t.categoryId)).toEqual(['8', '8']);
+    });
+
+    it('should refuse to delete a used category without a valid replacement', () => {
+      const service = createService();
+
+      expect(() => service.removeCategory('4', null)).toThrow('Elige a qué categoría');
+      expect(() => service.removeCategory('4', '1')).toThrow('Elige a qué categoría');
+      expect(service.getCategoryById('4')).toBeDefined();
+    });
+
+    it('should keep the last category of a type', () => {
+      const service = createService();
+      service.removeCategory('2', null);
+
+      expect(() => service.removeCategory('1', null)).toThrow('al menos una categoría');
+    });
+  });
+
   it('should look up categories by id', () => {
     const service = createService();
 

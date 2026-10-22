@@ -15,7 +15,7 @@ interface NavLink {
   template: `
     <header class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
       <nav
-        class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between"
+        class="max-w-5xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between"
         aria-label="Main navigation"
       >
         <a
@@ -23,18 +23,18 @@ interface NavLink {
           class="text-lg font-semibold text-gray-900 dark:text-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 rounded"
           aria-label="Finance Dashboard home"
         >
-          💰 Finance Dashboard
+          💰 <span class="hidden sm:inline">Finance Dashboard</span>
         </a>
 
-        <div class="flex items-center gap-2">
-          <ul class="flex gap-1" role="list">
+        <div class="flex items-center gap-1 sm:gap-2">
+          <ul class="flex gap-0.5 sm:gap-1" role="list">
             @for (link of navLinks; track link.path) {
               <li>
                 <a
                   [routerLink]="link.path"
                   routerLinkActive="bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
                   [routerLinkActiveOptions]="{ exact: link.path === '/' }"
-                  class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                  class="px-2 sm:px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                   [attr.aria-label]="link.ariaLabel"
                 >
                   {{ link.label }}
@@ -72,5 +72,6 @@ export class NavComponent {
   protected readonly navLinks: NavLink[] = [
     { path: '/',             label: 'Dashboard',    ariaLabel: 'Go to Dashboard' },
     { path: '/transactions', label: 'Transacciones', ariaLabel: 'Go to Transactions' },
+    { path: '/categories',   label: 'Categorías',    ariaLabel: 'Go to Categories' },
   ];
 }

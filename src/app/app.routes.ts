@@ -16,6 +16,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'categories',
+    loadComponent: () =>
+      import('./features/categories/categories.component').then(
+        m => m.CategoriesComponent
+      ),
+  },
+  {
     path: '**',
     redirectTo: '',
   },

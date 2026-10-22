@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Transaction } from '../models/transaction.model';
-import { DEFAULT_CATEGORIES } from '../models/category.model';
+import { Category, DEFAULT_CATEGORIES } from '../models/category.model';
 import { StorageService } from './storage.service';
 
 const SEED_DATA: Omit<Transaction, 'id'>[] = [
@@ -15,6 +15,7 @@ const SEED_DATA: Omit<Transaction, 'id'>[] = [
 ];
 
 const STORAGE_KEY = 'transactions';
+const CATEGORIES_KEY = 'categories';
 const SEEDED_KEY  = 'seeded_v3';
 
 function isSampleTransaction(transaction: Transaction): boolean {
@@ -56,7 +57,9 @@ export class TransactionService {
     this.storage.get<Transaction[]>(STORAGE_KEY, [])
   );
 
-  readonly categories = signal(DEFAULT_CATEGORIES);
+  readonly categories = signal<Category[]>(
+    this.storage.get<Category[]>(CATEGORIES_KEY, DEFAULT_CATEGORIES)
+  );
 
   readonly totalIncome = computed(() =>
     this.transactions()
@@ -183,6 +186,52 @@ export class TransactionService {
     });
   }
 
+  addCategory(category: Omit<Category, 'id'>): Category {
+    const created: Category = { ...category, id: crypto.randomUUID() };
+    this.setCategories([...this.categories(), created]);
+    return created;
+  }
+
+  /** Renames or recolors a category. Its type is fixed, since transactions depend on it. */
+  updateCategory(id: string, changes: Pick<Category, 'name' | 'color'>): void {
+    this.setCategories(this.categories().map(c => (c.id === id ? { ...c, ...changes } : c)));
+  }
+
+  /** Number of stored transactions that use a category. */
+  categoryUsage(id: string): number {
+    return this.transactions().filter(t => t.categoryId === id).length;
+  }
+
+  /**
+   * Deletes a category, moving its transactions to `replacementId` (a category
+   * of the same type). The last category of a type cannot be deleted.
+   */
+  removeCategory(id: string, replacementId: string | null): void {
+    const category = this.getCategoryById(id);
+    if (!category) return;
+    const sameType = this.categories().filter(c => c.type === category.type);
+    if (sameType.length <= 1) {
+      throw new Error('Debe quedar al menos una categoría de este tipo.');
+    }
+    if (this.categoryUsage(id) > 0) {
+      const replacement = sameType.find(c => c.id === replacementId && c.id !== id);
+      if (!replacement) {
+        throw new Error('Elige a qué categoría mover sus transacciones.');
+      }
+      this.transactions.update(current => {
+        const updated = current.map(t => (t.categoryId === id ? { ...t, categoryId: replacement.id } : t));
+        this.storage.set(STORAGE_KEY, updated);
+        return updated;
+      });
+    }
+    this.setCategories(this.categories().filter(c => c.id !== id));
+  }
+
+  /** Replaces every stored category, e.g. when restoring a backup. */
+  replaceCategories(categories: Category[]): void {
+    this.setCategories(categories);
+  }
+
   getCategoryById(id: string) {
     return this.categories().find(c => c.id === id);
   }
@@ -192,6 +241,11 @@ export class TransactionService {
     const dates = this.transactions().map(t => t.date);
     if (dates.length === 0) return null;
     return dates.reduce((latest, date) => (date > latest ? date : latest)).slice(0, 7);
+  }
+
+  private setCategories(categories: Category[]): void {
+    this.categories.set(categories);
+    this.storage.set(CATEGORIES_KEY, categories);
   }
 
   private initializeSeedData(): void {

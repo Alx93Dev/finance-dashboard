@@ -12,12 +12,16 @@ export interface Backup {
   transactions: Transaction[];
   /** Missing in backups made before budgets existed (schema version 1). */
   budgets?: Budget[];
+  /** Missing in backups made before categories were editable (schema version 2 or older). */
+  categories?: Category[];
 }
 
 export interface BackupData {
   transactions: Transaction[];
   /** null when the backup predates budgets, so current budgets are kept. */
   budgets: Budget[] | null;
+  /** null when the backup predates editable categories, so current ones are kept. */
+  categories: Category[] | null;
 }
 
 const CSV_HEADER = ['Fecha', 'Descripción', 'Tipo', 'Categoría', 'Monto'];
@@ -43,7 +47,7 @@ export function toCsv(transactions: Transaction[], categories: Category[]): stri
 }
 
 export function toBackup(
-  data: { transactions: Transaction[]; budgets: Budget[] },
+  data: { transactions: Transaction[]; budgets: Budget[]; categories: Category[] },
   schemaVersion: number,
   now = new Date(),
 ): Backup {
@@ -56,6 +60,28 @@ function parseBudget(item: unknown): Budget | null {
   const amount = Number(b['amount']);
   if (typeof b['categoryId'] !== 'string' || !Number.isFinite(amount) || amount <= 0) return null;
   return { categoryId: b['categoryId'], amount };
+}
+
+function parseCategory(item: unknown): Category | null {
+  if (!item || typeof item !== 'object') return null;
+  const c = item as Record<string, unknown>;
+  if (
+    typeof c['id'] !== 'string' ||
+    typeof c['name'] !== 'string' ||
+    typeof c['color'] !== 'string' ||
+    (c['type'] !== 'income' && c['type'] !== 'expense')
+  ) {
+    return null;
+  }
+  return { id: c['id'], name: c['name'], color: c['color'], type: c['type'] };
+}
+
+/** Parses an optional list of the backup; undefined means the backup predates it. */
+function parseOptionalList<T>(value: unknown, parse: (item: unknown) => T | null, error: string): T[] | null {
+  if (value === undefined) return null;
+  const parsed = Array.isArray(value) ? value.map(parse) : [null];
+  if (parsed.some(item => item === null)) throw new Error(error);
+  return parsed as T[];
 }
 
 function parseTransaction(item: unknown): Transaction | null {
@@ -105,13 +131,7 @@ export function parseBackup(text: string, supportedVersion: number): BackupData 
   if (transactions.some(t => t === null)) {
     throw new Error('El respaldo tiene transacciones dañadas.');
   }
-  let budgets: Budget[] | null = null;
-  if (backup.budgets !== undefined) {
-    const parsed = Array.isArray(backup.budgets) ? backup.budgets.map(parseBudget) : [null];
-    if (parsed.some(b => b === null)) {
-      throw new Error('El respaldo tiene presupuestos dañados.');
-    }
-    budgets = parsed as Budget[];
-  }
-  return { transactions: transactions as Transaction[], budgets };
+  const budgets = parseOptionalList(backup.budgets, parseBudget, 'El respaldo tiene presupuestos dañados.');
+  const categories = parseOptionalList(backup.categories, parseCategory, 'El respaldo tiene categorías dañadas.');
+  return { transactions: transactions as Transaction[], budgets, categories };
 }

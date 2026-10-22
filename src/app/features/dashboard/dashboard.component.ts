@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { TransactionService, percentChange } from '../../core/services/transaction.service';
+import { AccountService } from '../../core/services/account.service';
 import { SummaryCardComponent } from '../../shared/components/summary-card/summary-card.component';
 import { DonutChartComponent } from '../../shared/components/charts/donut-chart.component';
 import { BarChartComponent } from '../../shared/components/charts/bar-chart.component';
@@ -20,30 +21,46 @@ import { SampleDataBannerComponent } from '../../shared/components/sample-data-b
       <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Resumen</h1>
 
-        <div class="flex items-center gap-1" role="group" aria-label="Seleccionar mes">
-          <button
-            type="button"
-            (click)="tx.previousMonth()"
-            class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-            aria-label="Mes anterior"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
-            </svg>
-          </button>
-          <p class="min-w-36 text-center text-sm font-medium text-gray-900 dark:text-gray-100 capitalize" aria-live="polite">
-            {{ tx.selectedMonth() + '-01' | date:'MMMM y' }}
-          </p>
-          <button
-            type="button"
-            (click)="tx.nextMonth()"
-            class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-            aria-label="Mes siguiente"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-            </svg>
-          </button>
+        <div class="flex flex-wrap items-center gap-2">
+          @if (accounts.hasSeveral()) {
+            <label for="dashboard-account" class="sr-only">Cuenta</label>
+            <select
+              id="dashboard-account"
+              (change)="tx.dashboardAccount.set($any($event.target).value)"
+              class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            >
+              <option value="" [selected]="!selectedAccount()">Todas las cuentas</option>
+              @for (account of accounts.accounts(); track account.id) {
+                <option [value]="account.id" [selected]="account.id === selectedAccount()">{{ account.name }}</option>
+              }
+            </select>
+          }
+
+          <div class="flex items-center gap-1" role="group" aria-label="Seleccionar mes">
+            <button
+              type="button"
+              (click)="tx.previousMonth()"
+              class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+              aria-label="Mes anterior"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+              </svg>
+            </button>
+            <p class="min-w-36 text-center text-sm font-medium text-gray-900 dark:text-gray-100 capitalize" aria-live="polite">
+              {{ tx.selectedMonth() + '-01' | date:'MMMM y' }}
+            </p>
+            <button
+              type="button"
+              (click)="tx.nextMonth()"
+              class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+              aria-label="Mes siguiente"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -106,6 +123,11 @@ import { SampleDataBannerComponent } from '../../shared/components/sample-data-b
 })
 export class DashboardComponent {
   protected readonly tx = inject(TransactionService);
+  protected readonly accounts = inject(AccountService);
+  /** The filtered account while it still exists; '' for all of them. */
+  protected readonly selectedAccount = computed(() =>
+    this.accounts.getById(this.tx.dashboardAccount()) ? this.tx.dashboardAccount() : ''
+  );
 
   protected change(current: number, previous: number): number | null {
     return this.tx.hasPreviousMonth() ? percentChange(current, previous) : null;

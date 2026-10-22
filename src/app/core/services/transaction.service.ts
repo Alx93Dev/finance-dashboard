@@ -99,9 +99,20 @@ export class TransactionService {
   /** Month shown on the dashboard, as 'YYYY-MM'. */
   readonly selectedMonth = signal(currentMonth());
 
+  /** Account the dashboard is limited to; '' shows every account. */
+  readonly dashboardAccount = signal('');
+
+  /** Valued transactions of the dashboard's account, or of all accounts. */
+  readonly dashboardTransactions = computed(() => {
+    const accountId = this.dashboardAccount();
+    // A deleted account stops filtering instead of hiding everything.
+    const exists = accountId && this.injector.get(AccountService).getById(accountId);
+    return exists ? this.valuedTransactions().filter(t => t.accountId === accountId) : this.valuedTransactions();
+  });
+
   readonly monthTransactions = computed(() => {
     const month = this.selectedMonth();
-    return this.valuedTransactions().filter(t => t.date.startsWith(month));
+    return this.dashboardTransactions().filter(t => t.date.startsWith(month));
   });
 
   readonly monthIncome = computed(() =>
@@ -120,7 +131,7 @@ export class TransactionService {
 
   private readonly previousMonthTransactions = computed(() => {
     const month = shiftMonth(this.selectedMonth(), -1);
-    return this.valuedTransactions().filter(t => t.date.startsWith(month));
+    return this.dashboardTransactions().filter(t => t.date.startsWith(month));
   });
 
   readonly previousMonthIncome = computed(() =>

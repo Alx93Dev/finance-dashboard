@@ -27,6 +27,7 @@ export class BackupService {
         goals: this.goals.goals(),
         accounts: this.accounts.accounts(),
         transfers: this.accounts.transfers(),
+        defaultAccountId: this.accounts.defaultId(),
       },
       this.storage.schemaVersion(),
     );
@@ -35,7 +36,7 @@ export class BackupService {
   /** Replaces the current data; lists the backup doesn't have are kept as they are. */
   apply(backup: BackupData): void {
     if (backup.categories) this.tx.replaceCategories(backup.categories);
-    if (backup.accounts) this.accounts.replaceAll(backup.accounts);
+    if (backup.accounts) this.accounts.replaceAll(backup.accounts, backup.defaultAccountId ?? undefined);
     if (backup.transfers) this.accounts.replaceTransfers(backup.transfers);
     this.tx.replaceAll(backup.transactions);
     if (backup.budgets) this.budgets.replaceAll(backup.budgets);

@@ -53,8 +53,29 @@ describe('AccountService', () => {
     expect(service.balances()[0].balance).toBe(642000);
   });
 
-  it('should not delete the main account', () => {
+  it('should not delete the default account', () => {
     expect(() => TestBed.inject(AccountService).remove('main')).toThrow('no se puede eliminar');
+  });
+
+  it('should let another account be the default and move deleted accounts there', () => {
+    const service = TestBed.inject(AccountService);
+    expect(service.defaultId()).toBe('main');
+
+    service.setDefault('cash');
+    service.remove('main');
+
+    expect(service.defaultId()).toBe('cash');
+    expect(localStorage.getItem('default_account')).toBe('"cash"');
+    expect(TestBed.inject(TransactionService).transactions().every(t => t.accountId === 'cash')).toBe(true);
+    expect(() => service.remove('cash')).toThrow('no se puede eliminar');
+  });
+
+  it('should fall back to the first account when the stored default is gone', () => {
+    localStorage.setItem('default_account', '"gone"');
+    const service = TestBed.inject(AccountService);
+    expect(service.defaultId()).toBe('main');
+    service.setDefault('gone');
+    expect(service.defaultId()).toBe('main');
   });
 
   describe('currencies', () => {

@@ -13,7 +13,6 @@ import { Transaction } from '../../../core/models/transaction.model';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { RecurringService } from '../../../core/services/recurring.service';
 import { AccountService } from '../../../core/services/account.service';
-import { MAIN_ACCOUNT_ID } from '../../../core/models/account.model';
 
 /** Amounts can have decimals, e.g. in dollars or UF, but must be above zero. */
 function positive(control: AbstractControl): ValidationErrors | null {
@@ -241,7 +240,7 @@ export class TransactionFormComponent implements OnInit {
     amount:      [null as unknown as number, [Validators.required, positive]],
     categoryId:  ['', Validators.required],
     date:        ['', Validators.required],
-    accountId:   [MAIN_ACCOUNT_ID, Validators.required],
+    accountId:   [this.accounts.defaultId(), Validators.required],
     repeat:      [false],
   });
 

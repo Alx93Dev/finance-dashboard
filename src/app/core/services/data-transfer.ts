@@ -27,6 +27,8 @@ export interface Backup {
   accounts?: Account[];
   /** Missing in backups made before transfers (schema version 6 or older). */
   transfers?: Transfer[];
+  /** Missing in backups made before the default account could be chosen; it was the main account. */
+  defaultAccountId?: string;
 }
 
 export interface BackupData {
@@ -43,6 +45,8 @@ export interface BackupData {
   accounts: Account[] | null;
   /** null when the backup predates transfers, so current ones are kept. */
   transfers: Transfer[] | null;
+  /** Account to make the default, always one of `accounts`; null when the backup has no accounts. */
+  defaultAccountId: string | null;
 }
 
 const CSV_HEADER = ['Fecha', 'Descripción', 'Tipo', 'Categoría', 'Cuenta', 'Monto', 'Moneda'];
@@ -71,7 +75,10 @@ export function toCsv(transactions: Transaction[], categories: Category[], accou
 }
 
 export function toBackup(
-  data: { transactions: Transaction[]; budgets: Budget[]; categories: Category[]; recurring: Recurring[]; goals: Goal[]; accounts: Account[]; transfers: Transfer[] },
+  data: {
+    transactions: Transaction[]; budgets: Budget[]; categories: Category[]; recurring: Recurring[];
+    goals: Goal[]; accounts: Account[]; transfers: Transfer[]; defaultAccountId?: string;
+  },
   schemaVersion: number,
   now = new Date(),
 ): Backup {
@@ -249,13 +256,17 @@ export function parseBackup(text: string, supportedVersion: number): BackupData 
   const recurring = parseOptionalList(backup.recurring, parseRecurring, 'El respaldo tiene recurrentes dañadas.');
   const goals = parseOptionalList(backup.goals, parseGoal, 'El respaldo tiene metas dañadas.');
   let accounts = parseOptionalList(backup.accounts, parseAccount, 'El respaldo tiene cuentas dañadas.');
-  if (accounts && !accounts.some(a => a.id === MAIN_ACCOUNT_ID)) accounts = [...DEFAULT_ACCOUNTS, ...accounts];
-
-  // Anything pointing to an account the backup doesn't have goes to the main account.
+  if (accounts && accounts.length === 0) accounts = [...DEFAULT_ACCOUNTS];
   const accountIds = new Set((accounts ?? DEFAULT_ACCOUNTS).map(a => a.id));
-  const known = (id: string) => (accountIds.has(id) ? id : MAIN_ACCOUNT_ID);
+  // Older backups always kept the main account and used it as the default.
+  let fallback = accounts?.[0]?.id ?? MAIN_ACCOUNT_ID;
+  if (accountIds.has(MAIN_ACCOUNT_ID)) fallback = MAIN_ACCOUNT_ID;
+  if (typeof backup.defaultAccountId === 'string' && accountIds.has(backup.defaultAccountId)) fallback = backup.defaultAccountId;
+
+  // Anything pointing to an account the backup doesn't have goes to the default account.
+  const known = (id: string) => (accountIds.has(id) ? id : fallback);
   const inKnownAccount = <T extends { accountId: string }>(item: T): T =>
-    accountIds.has(item.accountId) ? item : { ...item, accountId: MAIN_ACCOUNT_ID };
+    accountIds.has(item.accountId) ? item : { ...item, accountId: fallback };
   const transfers = parseOptionalList(backup.transfers, parseTransfer, 'El respaldo tiene transferencias dañadas.')
     ?.map(t => ({ ...t, fromAccountId: known(t.fromAccountId), toAccountId: known(t.toAccountId) }))
     .filter(t => t.fromAccountId !== t.toAccountId) ?? null;
@@ -267,5 +278,6 @@ export function parseBackup(text: string, supportedVersion: number): BackupData 
     goals,
     accounts,
     transfers,
+    defaultAccountId: accounts ? fallback : null,
   };
 }

@@ -8,6 +8,7 @@ import { TransactionService } from './transaction.service';
 
 const STORAGE_KEY = 'accounts';
 const TRANSFERS_KEY = 'transfers';
+const DEFAULT_KEY = 'default_account';
 
 export interface AccountBalance {
   account: Account;
@@ -26,6 +27,17 @@ export class AccountService {
 
   readonly accounts = signal<Account[]>(this.storage.get<Account[]>(STORAGE_KEY, DEFAULT_ACCOUNTS));
   readonly transfers = signal<Transfer[]>(this.storage.get<Transfer[]>(TRANSFERS_KEY, []));
+  private readonly chosenDefault = signal<string>(this.storage.get<string>(DEFAULT_KEY, MAIN_ACCOUNT_ID));
+
+  /**
+   * Account that forms and imports start on, and where a deleted account's
+   * movements go. Falls back to the first account if the chosen one is gone.
+   */
+  readonly defaultId = computed(() => {
+    const accounts = this.accounts();
+    const chosen = this.chosenDefault();
+    return accounts.some(a => a.id === chosen) ? chosen : accounts[0]?.id ?? MAIN_ACCOUNT_ID;
+  });
 
   /** Transfers from most recent to oldest. */
   readonly recentTransfers = computed(() =>
@@ -70,6 +82,12 @@ export class AccountService {
     return this.accounts().find(a => a.id === id);
   }
 
+  setDefault(id: string): void {
+    if (!this.getById(id)) return;
+    this.chosenDefault.set(id);
+    this.storage.set(DEFAULT_KEY, id);
+  }
+
   add(account: Omit<Account, 'id'>): Account {
     const created: Account = { ...account, id: crypto.randomUUID() };
     this.setAccounts([...this.accounts(), created]);
@@ -88,15 +106,16 @@ export class AccountService {
 
   /**
    * Deletes an account, moving its transactions, recurring rules and
-   * transfers to the main account. Transfers that would then go from the main
-   * account to itself are dropped.
+   * transfers to the default account. Transfers that would then go from the
+   * default account to itself are dropped.
    */
   remove(id: string): void {
-    if (id === MAIN_ACCOUNT_ID) throw new Error('La cuenta principal no se puede eliminar.');
+    const target = this.defaultId();
+    if (id === target) throw new Error('La cuenta principal no se puede eliminar.');
     if (!this.getById(id)) return;
-    this.tx.reassignAccount(id, MAIN_ACCOUNT_ID);
-    this.recurring.reassignAccount(id, MAIN_ACCOUNT_ID);
-    const move = (accountId: string) => (accountId === id ? MAIN_ACCOUNT_ID : accountId);
+    this.tx.reassignAccount(id, target);
+    this.recurring.reassignAccount(id, target);
+    const move = (accountId: string) => (accountId === id ? target : accountId);
     this.setTransfers(this.transfers()
       .map(t => ({ ...t, fromAccountId: move(t.fromAccountId), toAccountId: move(t.toAccountId) }))
       .filter(t => t.fromAccountId !== t.toAccountId));
@@ -136,7 +155,11 @@ export class AccountService {
   }
 
   /** Replaces every stored account, e.g. when restoring a backup; drops transfers to accounts that are gone. */
-  replaceAll(accounts: Account[]): void {
+  replaceAll(accounts: Account[], defaultId?: string): void {
+    if (defaultId && accounts.some(a => a.id === defaultId)) {
+      this.chosenDefault.set(defaultId);
+      this.storage.set(DEFAULT_KEY, defaultId);
+    }
     this.setAccounts(accounts);
     const ids = new Set(accounts.map(a => a.id));
     this.setTransfers(this.transfers().filter(t => ids.has(t.fromAccountId) && ids.has(t.toAccountId)));

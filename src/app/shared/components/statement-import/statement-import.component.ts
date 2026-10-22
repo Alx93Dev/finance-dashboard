@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { MoneyPipe } from '../../pipes/money.pipe';
-import { MAIN_ACCOUNT_ID } from '../../../core/models/account.model';
 import { AccountService } from '../../../core/services/account.service';
 import { TransactionService } from '../../../core/services/transaction.service';
 import {
@@ -174,7 +173,7 @@ export class StatementImportComponent {
 
   protected readonly mapping = signal<ColumnMapping>({ date: 0, description: NO_COLUMN, amount: NO_COLUMN, debit: NO_COLUMN, credit: NO_COLUMN });
   protected readonly mode = signal<AmountMode>('signed');
-  protected readonly accountId = signal(MAIN_ACCOUNT_ID);
+  protected readonly accountId = signal(this.accounts.defaultId());
 
   protected readonly expenseCategories = computed(() => this.tx.categories().filter(c => c.type === 'expense'));
   protected readonly incomeCategories = computed(() => this.tx.categories().filter(c => c.type === 'income'));

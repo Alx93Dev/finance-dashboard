@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { StorageService } from '../../../core/services/storage.service';
-import { BudgetService } from '../../../core/services/budget.service';
-import { GoalService } from '../../../core/services/goal.service';
 import { AccountService } from '../../../core/services/account.service';
-import { RecurringService } from '../../../core/services/recurring.service';
-import { BackupData, parseBackup, toBackup, toCsv } from '../../../core/services/data-transfer';
+import { BackupService } from '../../../core/services/backup.service';
+import { BackupData, parseBackup, toCsv } from '../../../core/services/data-transfer';
 import { StatementImportComponent } from '../statement-import/statement-import.component';
+import { SyncPanelComponent } from '../sync-panel/sync-panel.component';
+import { SyncService } from '../../../core/sync/sync.service';
 
 function today(): string {
   const now = new Date();
@@ -35,14 +35,19 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
 
 @Component({
   selector: 'app-data-transfer-panel',
-  imports: [StatementImportComponent],
+  imports: [StatementImportComponent, SyncPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="mt-8 p-4 rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900" role="region" aria-labelledby="data-transfer-title">
       <h2 id="data-transfer-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">Tus datos</h2>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        Tus transacciones solo se guardan en este navegador. Descarga un respaldo para no perderlas,
-        o importa la cartola de tu banco en CSV.
+        @if (sync.signedIn()) {
+          Tus datos se guardan en este navegador y en tu cuenta. También puedes descargar un respaldo
+          o importar la cartola de tu banco en CSV.
+        } @else {
+          Tus transacciones solo se guardan en este navegador. Descarga un respaldo para no perderlas,
+          o importa la cartola de tu banco en CSV.
+        }
       </p>
 
       <div class="flex flex-wrap gap-2 mt-3">
@@ -79,15 +84,16 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
           {{ text }}
         </p>
       }
+
+      <app-sync-panel />
     </div>
   `,
 })
 export class DataTransferPanelComponent {
   protected readonly tx = inject(TransactionService);
-  private readonly budgets = inject(BudgetService);
-  private readonly recurring = inject(RecurringService);
-  private readonly goals = inject(GoalService);
+  protected readonly sync = inject(SyncService);
   private readonly accounts = inject(AccountService);
+  private readonly backups = inject(BackupService);
   private readonly storage = inject(StorageService);
 
   protected readonly buttonClass = BUTTON;
@@ -101,18 +107,7 @@ export class DataTransferPanelComponent {
   }
 
   exportBackup(): void {
-    const backup = toBackup(
-      {
-        transactions: this.tx.transactions(),
-        budgets: this.budgets.budgets(),
-        categories: this.tx.categories(),
-        recurring: this.recurring.rules(),
-        goals: this.goals.goals(),
-        accounts: this.accounts.accounts(),
-        transfers: this.accounts.transfers(),
-      },
-      this.storage.schemaVersion(),
-    );
+    const backup = this.backups.snapshot();
     download(`respaldo-finanzas-${today()}.json`, JSON.stringify(backup, null, 2), 'application/json');
   }
 
@@ -152,13 +147,7 @@ export class DataTransferPanelComponent {
   confirmImport(): void {
     const backup = this.pendingImport();
     if (!backup) return;
-    if (backup.categories) this.tx.replaceCategories(backup.categories);
-    if (backup.accounts) this.accounts.replaceAll(backup.accounts);
-    if (backup.transfers) this.accounts.replaceTransfers(backup.transfers);
-    this.tx.replaceAll(backup.transactions);
-    if (backup.budgets) this.budgets.replaceAll(backup.budgets);
-    if (backup.recurring) this.recurring.replaceAll(backup.recurring);
-    if (backup.goals) this.goals.replaceAll(backup.goals);
+    this.backups.apply(backup);
     this.pendingImport.set(null);
     this.showMessage(`Se restauraron ${backup.transactions.length} transacciones.`, false);
   }

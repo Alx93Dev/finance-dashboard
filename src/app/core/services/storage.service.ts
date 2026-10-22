@@ -1,10 +1,16 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { MIGRATIONS, Migration } from './storage-migrations';
 
 export const SCHEMA_VERSION_KEY = 'schema_version';
 
+/** Keys holding the user's own data, which backups and cloud sync carry. */
+export const DATA_KEYS = ['transactions', 'categories', 'budgets', 'recurring', 'goals', 'accounts', 'transfers'];
+
 @Injectable({ providedIn: 'root' })
 export class StorageService {
+  /** Goes up each time any of the user's data (DATA_KEYS) is written. */
+  readonly dataRevision = signal(0);
+
   constructor() {
     this.runMigrations(MIGRATIONS);
   }
@@ -21,6 +27,7 @@ export class StorageService {
 
   set<T>(key: string, value: T): void {
     localStorage.setItem(key, JSON.stringify(value));
+    if (DATA_KEYS.includes(key)) this.dataRevision.update(n => n + 1);
   }
 
   /** Version of the data currently in storage; 0 means it predates versioning. */

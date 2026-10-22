@@ -8,6 +8,7 @@ import { routes } from './app.routes';
 import { RecurringService } from './core/services/recurring.service';
 import { AccountService } from './core/services/account.service';
 import { ExchangeRateService } from './core/services/exchange-rate.service';
+import { SyncService } from './core/sync/sync.service';
 
 registerLocaleData(localeEsCL);
 
@@ -22,6 +23,8 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       if (inject(AccountService).hasForeignCurrency()) void inject(ExchangeRateService).refresh();
     }),
+    // Restore the cloud sync session and bring the data up to date in the background.
+    provideAppInitializer(() => { void inject(SyncService).start(); }),
     // Caches the app so it can be installed and opened offline.
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),

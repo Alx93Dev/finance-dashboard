@@ -79,6 +79,18 @@ pnpm build
 pnpm e2e
 ```
 
+### Cloud sync (optional)
+
+Data lives in the browser. To sync it between devices with [Supabase](https://supabase.com):
+
+1. Create a project (the free plan is enough).
+2. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql). It creates one row per user, protected by row level security.
+3. In **Authentication → URL Configuration**, set the **Site URL** to the production URL and add the preview and local URLs (for example `https://*.vercel.app/**` and `http://localhost:4200/**`) to **Redirect URLs**.
+4. In **Authentication → Email Templates → Magic Link**, add `{{ .Token }}` to the message so it also carries a code. The code lets you sign in on a device other than the one where you open the email.
+5. In **Project Settings → API**, copy the project URL and the `anon` public key into [`src/app/core/sync/sync.config.ts`](src/app/core/sync/sync.config.ts).
+
+A **Sincronización** section then appears under **Tus datos**. Changes upload a couple of seconds after you make them, and the cloud copy is read when the app opens or regains focus. If both sides changed, the app asks which one to keep.
+
 ---
 
 ## 📁 Project Structure

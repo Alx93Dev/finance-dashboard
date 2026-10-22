@@ -88,6 +88,7 @@ export class DataTransferPanelComponent {
         recurring: this.recurring.rules(),
         goals: this.goals.goals(),
         accounts: this.accounts.accounts(),
+        transfers: this.accounts.transfers(),
       },
       this.storage.schemaVersion(),
     );
@@ -117,6 +118,7 @@ export class DataTransferPanelComponent {
     if (!backup) return;
     if (backup.categories) this.tx.replaceCategories(backup.categories);
     if (backup.accounts) this.accounts.replaceAll(backup.accounts);
+    if (backup.transfers) this.accounts.replaceTransfers(backup.transfers);
     this.tx.replaceAll(backup.transactions);
     if (backup.budgets) this.budgets.replaceAll(backup.budgets);
     if (backup.recurring) this.recurring.replaceAll(backup.recurring);

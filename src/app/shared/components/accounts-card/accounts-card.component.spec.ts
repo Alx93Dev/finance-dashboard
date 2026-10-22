@@ -86,4 +86,67 @@ describe('AccountsCardComponent', () => {
 
     expect(service.accounts()[0].name).toBe('Cuenta principal');
   });
+
+  it('should only offer transfers with several accounts', async () => {
+    const { fixture, root, service } = await render();
+    expect(button(root, 'Transferir')).toBeUndefined();
+
+    service.add({ name: 'Efectivo', initialBalance: 0 });
+    await fixture.whenStable();
+    expect(button(root, 'Transferir')).toBeDefined();
+  });
+
+  it('should record a transfer and list it', async () => {
+    const { fixture, root, service } = await render();
+    service.add({ name: 'Efectivo', initialBalance: 0 });
+    await fixture.whenStable();
+
+    button(root, 'Transferir').click();
+    await fixture.whenStable();
+    expect(root.querySelector<HTMLSelectElement>('#transfer-to')!.selectedOptions[0].textContent!.trim()).toBe('Efectivo');
+    root.querySelector<HTMLInputElement>('#transfer-amount')!.value = '60000';
+    root.querySelector<HTMLInputElement>('#transfer-description')!.value = 'Cajero';
+    root.querySelector<HTMLFormElement>('form[aria-label="Nueva transferencia"] button[type="submit"]')!.click();
+    await fixture.whenStable();
+
+    expect(service.transfers()).toEqual([expect.objectContaining({ fromAccountId: 'main', amount: 60000, description: 'Cajero' })]);
+    expect(service.balances().map(b => b.balance)).toEqual([440000, 60000]);
+    expect(root.textContent).toContain('Cuenta principal → Efectivo');
+
+    root.querySelector<HTMLButtonElement>('[aria-label="Eliminar transferencia de Cuenta principal a Efectivo"]')!.click();
+    await fixture.whenStable();
+    expect(service.transfers()).toEqual([]);
+    expect(root.textContent).not.toContain('Últimas transferencias');
+  });
+
+  it('should explain a transfer to the same account', async () => {
+    const { fixture, root, service } = await render();
+    service.add({ name: 'Efectivo', initialBalance: 0 });
+    await fixture.whenStable();
+
+    button(root, 'Transferir').click();
+    await fixture.whenStable();
+    root.querySelector<HTMLSelectElement>('#transfer-to')!.value = 'main';
+    root.querySelector<HTMLInputElement>('#transfer-amount')!.value = '1000';
+    root.querySelector<HTMLFormElement>('form[aria-label="Nueva transferencia"] button[type="submit"]')!.click();
+    await fixture.whenStable();
+
+    expect(root.querySelector('[role="alert"]')!.textContent).toContain('Elige dos cuentas distintas.');
+    expect(service.transfers()).toEqual([]);
+  });
+
+  it('should add an account straight from the card', async () => {
+    const { fixture, root, service } = await render();
+
+    button(root, 'Agregar cuenta').click();
+    await fixture.whenStable();
+    const names = inputs(root, 'account-name-');
+    expect(names).toHaveLength(2);
+    expect(document.activeElement).toBe(names[1]);
+    names[1].value = 'Tarjeta';
+    button(root, 'Guardar').click();
+    await fixture.whenStable();
+
+    expect(service.accounts().map(a => a.name)).toEqual(['Cuenta principal', 'Tarjeta']);
+  });
 });

@@ -38,7 +38,7 @@ describe('DataTransferPanelComponent', () => {
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
 
-    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }], categories: CATEGORIES, recurring: [], goals: [{ id: 'g', name: 'Viaje', target: 1000000, saved: 200000, deadline: null }], accounts: DEFAULT_ACCOUNTS }, 6)));
+    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }], categories: CATEGORIES, recurring: [], goals: [{ id: 'g', name: 'Viaje', target: 1000000, saved: 200000, deadline: null }], accounts: DEFAULT_ACCOUNTS, transfers: [] }, 7)));
     await fixture.whenStable();
     expect(root.textContent).toContain('El respaldo tiene 2 transacciones y reemplazará las 1 actuales.');
     expect(tx.transactions()).toEqual(STORED);
@@ -60,7 +60,7 @@ describe('DataTransferPanelComponent', () => {
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
 
-    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }], categories: CATEGORIES, recurring: [], goals: [], accounts: DEFAULT_ACCOUNTS }, 6)));
+    fixture.componentInstance.loadBackup(JSON.stringify(toBackup({ transactions: BACKUP, budgets: [{ categoryId: '4', amount: 50000 }], categories: CATEGORIES, recurring: [], goals: [], accounts: DEFAULT_ACCOUNTS, transfers: [] }, 7)));
     await fixture.whenStable();
     button(root, 'Cancelar').click();
     await fixture.whenStable();

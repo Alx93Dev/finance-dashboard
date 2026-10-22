@@ -4,6 +4,7 @@ import { Category, DEFAULT_CATEGORIES } from '../models/category.model';
 import { Goal } from '../models/goal.model';
 import { Recurring } from '../models/recurring.model';
 import { Transaction } from '../models/transaction.model';
+import { Transfer } from '../models/transfer.model';
 
 /** Minimal storage surface a migration needs; keeps migrations independent of Angular DI. */
 export interface MigrationStorage {
@@ -142,6 +143,24 @@ export const MIGRATIONS: Migration[] = [
         storage.set(key, items.map(item =>
           typeof item.accountId === 'string' && ids.has(item.accountId) ? item : { ...item, accountId: MAIN_ACCOUNT_ID }));
       }
+    },
+  },  {
+    version: 7,
+    description: 'Add transfers between accounts',
+    migrate(storage) {
+      const raw = storage.get<unknown>('transfers', []);
+      const transfers: Transfer[] = Array.isArray(raw)
+        ? raw.filter((t): t is Transfer =>
+            !!t &&
+            typeof t.id === 'string' &&
+            typeof t.fromAccountId === 'string' &&
+            typeof t.toAccountId === 'string' &&
+            t.fromAccountId !== t.toAccountId &&
+            Number.isFinite(t.amount) && t.amount > 0 &&
+            typeof t.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date) &&
+            typeof t.description === 'string')
+        : [];
+      storage.set('transfers', transfers);
     },
   },
 ];

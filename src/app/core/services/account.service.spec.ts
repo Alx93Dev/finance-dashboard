@@ -56,4 +56,46 @@ describe('AccountService', () => {
   it('should not delete the main account', () => {
     expect(() => TestBed.inject(AccountService).remove('main')).toThrow('no se puede eliminar');
   });
+
+  describe('transfers', () => {
+    it('should move money between accounts without touching income or expenses', () => {
+      const service = TestBed.inject(AccountService);
+      const tx = TestBed.inject(TransactionService);
+      const before = { income: tx.totalIncome(), expenses: tx.totalExpenses() };
+
+      service.transfer({ fromAccountId: 'main', toAccountId: 'cash', amount: 50000, date: '2025-01-15', description: 'Cajero' });
+
+      expect(service.balances().map(b => b.balance)).toEqual([600000, 62000]);
+      expect(service.totalBalance()).toBe(662000);
+      expect({ income: tx.totalIncome(), expenses: tx.totalExpenses() }).toEqual(before);
+      expect(JSON.parse(localStorage.getItem('transfers')!)).toHaveLength(1);
+    });
+
+    it('should list transfers from most recent and delete them', () => {
+      const service = TestBed.inject(AccountService);
+      const older = service.transfer({ fromAccountId: 'main', toAccountId: 'cash', amount: 1000, date: '2025-01-01', description: '' });
+      const newer = service.transfer({ fromAccountId: 'cash', toAccountId: 'main', amount: 2000, date: '2025-01-20', description: '' });
+
+      expect(service.recentTransfers().map(t => t.id)).toEqual([newer.id, older.id]);
+      service.removeTransfer(newer.id);
+      expect(service.transfers().map(t => t.id)).toEqual([older.id]);
+    });
+
+    it('should refuse a transfer to the same account', () => {
+      expect(() => TestBed.inject(AccountService).transfer({
+        fromAccountId: 'main', toAccountId: 'main', amount: 1000, date: '2025-01-01', description: '',
+      })).toThrow('dos cuentas distintas');
+    });
+
+    it('should drop transfers that would end up inside the main account when deleting', () => {
+      const service = TestBed.inject(AccountService);
+      const card = service.add({ name: 'Tarjeta', initialBalance: 0 });
+      service.transfer({ fromAccountId: 'main', toAccountId: 'cash', amount: 1000, date: '2025-01-01', description: '' });
+      service.transfer({ fromAccountId: 'cash', toAccountId: card.id, amount: 500, date: '2025-01-02', description: '' });
+
+      service.remove('cash');
+
+      expect(service.transfers().map(t => [t.fromAccountId, t.toAccountId])).toEqual([['main', card.id]]);
+    });
+  });
 });

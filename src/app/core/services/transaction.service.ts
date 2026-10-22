@@ -17,6 +17,16 @@ const SEED_DATA: Omit<Transaction, 'id'>[] = [
 const STORAGE_KEY = 'transactions';
 const SEEDED_KEY  = 'seeded_v3';
 
+function isSampleTransaction(transaction: Transaction): boolean {
+  return SEED_DATA.some(seed =>
+    seed.description === transaction.description &&
+    seed.amount === transaction.amount &&
+    seed.categoryId === transaction.categoryId &&
+    seed.date === transaction.date &&
+    seed.type === transaction.type
+  );
+}
+
 /** Shifts a 'YYYY-MM' month key by `delta` months. */
 export function shiftMonth(month: string, delta: number): string {
   const [year, monthIndex] = month.split('-').map(Number);
@@ -52,6 +62,9 @@ export class TransactionService {
   );
 
   readonly balance = computed(() => this.totalIncome() - this.totalExpenses());
+
+  /** True while any of the example transactions from the first run are still stored. */
+  readonly hasSampleData = computed(() => this.transactions().some(isSampleTransaction));
 
   /** Month shown on the dashboard, as 'YYYY-MM'. */
   readonly selectedMonth = signal(currentMonth());
@@ -107,7 +120,16 @@ export class TransactionService {
     });
   }
 
-  remove(id: string): void {
+  /** Removes the example transactions seeded on first run, keeping the user's own. */
+  clearSampleData(): void {
+    this.transactions.update(current => {
+      const updated = current.filter(t => !isSampleTransaction(t));
+      this.storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+  }
+
+    remove(id: string): void {
     this.transactions.update(current => {
       const updated = current.filter(t => t.id !== id);
       this.storage.set(STORAGE_KEY, updated);

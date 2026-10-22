@@ -184,4 +184,48 @@ describe('TransactionsComponent', () => {
       expect(descriptions(root)).toEqual(['Sueldo', 'Arriendo', 'Freelance']);
     });
   });
+
+  describe('empty state and sample data', () => {
+    it('should offer to add the first transaction when there are none', async () => {
+      localStorage.setItem('transactions', '[]');
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+
+      const button = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+        .find(b => b.textContent!.trim() === 'Agregar primera transacción');
+      expect(button).toBeDefined();
+
+      button!.click();
+      await fixture.whenStable();
+      expect(root.querySelector('app-transaction-form')).not.toBeNull();
+    });
+
+    it('should not show the sample data banner for the user\'s own data', async () => {
+      localStorage.setItem('transactions', JSON.stringify([
+        { id: 'x', description: 'Café', amount: 3000, categoryId: '3', date: '2025-02-01', type: 'expense' },
+      ]));
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('datos de ejemplo');
+    });
+
+    it('should clear the sample data from the banner', async () => {
+      localStorage.clear();
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(descriptions(root).length).toBe(8);
+
+      const clear = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+        .find(b => b.textContent!.trim() === 'Borrar datos de ejemplo')!;
+      clear.click();
+      await fixture.whenStable();
+
+      expect(descriptions(root)).toEqual([]);
+      expect(root.textContent).not.toContain('Estás viendo datos de ejemplo');
+      expect(root.textContent).toContain('Agregar primera transacción');
+    });
+  });
 });

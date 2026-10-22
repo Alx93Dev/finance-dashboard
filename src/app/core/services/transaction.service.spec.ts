@@ -149,6 +149,33 @@ describe('TransactionService', () => {
     });
   });
 
+  describe('sample data', () => {
+    it('should report sample data after the first run', () => {
+      expect(createService().hasSampleData()).toBe(true);
+    });
+
+    it('should clear the sample data but keep the user\'s own transactions', () => {
+      const service = createService();
+      service.add({ description: 'Café', amount: 3000, categoryId: '3', date: '2025-02-01', type: 'expense' });
+
+      service.clearSampleData();
+
+      expect(service.hasSampleData()).toBe(false);
+      expect(service.transactions().map(t => t.description)).toEqual(['Café']);
+      expect(stored()).toEqual(service.transactions());
+    });
+
+    it('should not treat an edited example as sample data', () => {
+      const service = createService();
+      const [first] = service.transactions();
+      service.update({ ...first, amount: first.amount + 1 });
+
+      service.clearSampleData();
+
+      expect(service.transactions()).toEqual([{ ...first, amount: first.amount + 1 }]);
+    });
+  });
+
   describe('month selection', () => {
     it('should start on the most recent month with transactions', () => {
       const existing: Transaction[] = [

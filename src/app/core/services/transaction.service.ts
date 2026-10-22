@@ -160,7 +160,14 @@ export class TransactionService {
     });
   }
 
-    remove(id: string): void {
+  /** Replaces every stored transaction, e.g. when restoring a backup. */
+  replaceAll(transactions: Transaction[]): void {
+    this.transactions.set(transactions);
+    this.storage.set(STORAGE_KEY, transactions);
+    this.selectedMonth.set(this.latestMonth() ?? currentMonth());
+  }
+
+  remove(id: string): void {
     this.transactions.update(current => {
       const updated = current.filter(t => t.id !== id);
       this.storage.set(STORAGE_KEY, updated);

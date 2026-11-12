@@ -33,4 +33,12 @@ describe('balanceTrend', () => {
       { month: '2025-02', balance: 50 },
     ]);
   });
+  it('should group by the month given for each date, such as a billing period', () => {
+    const tx = [
+      { id: 'a', description: 'A', amount: 100, categoryId: '3', date: '2026-08-20', type: 'expense' as const, accountId: 'card' },
+      { id: 'b', description: 'B', amount: 50,  categoryId: '3', date: '2026-09-25', type: 'expense' as const, accountId: 'card' },
+    ];
+    const byPeriod = (date: string) => (date.slice(8) > '19' ? (date < '2026-09' ? '2026-09' : '2026-10') : date.slice(0, 7));
+    expect(balanceTrend(tx, byPeriod)).toEqual([{ month: '2026-09', balance: -100 }, { month: '2026-10', balance: -150 }]);
+  });
 });

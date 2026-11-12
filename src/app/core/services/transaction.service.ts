@@ -5,6 +5,7 @@ import { MAIN_ACCOUNT_ID } from '../models/account.model';
 import { StorageService } from './storage.service';
 import { ExchangeRateService } from './exchange-rate.service';
 import { AccountService } from './account.service';
+import { periodClosingIn, periodOf } from './billing-period';
 
 const SEED_DATA: Omit<Transaction, 'id'>[] = [
   { description: 'Sueldo enero',       amount: 1200000, categoryId: '1', date: '2025-01-31', type: 'income',  accountId: MAIN_ACCOUNT_ID },
@@ -113,9 +114,31 @@ export class TransactionService {
     return exists ? this.valuedTransactions().filter(t => t.accountId === accountId) : this.valuedTransactions();
   });
 
+  /**
+   * Billing cycle of the dashboard's account when it is a credit card with a
+   * closing day; the dashboard then goes by billing period instead of month.
+   */
+  readonly dashboardBilling = computed(() => {
+    const accountId = this.dashboardAccount();
+    return (accountId && this.injector.get(AccountService).getById(accountId)?.billing) || null;
+  });
+
+  /** Billing period shown on the dashboard, named by the month it closes in; null when it goes by calendar month. */
+  readonly dashboardPeriod = computed(() => {
+    const billing = this.dashboardBilling();
+    return billing ? periodClosingIn(billing, this.selectedMonth()) : null;
+  });
+
+  /** Month a date counts in on the dashboard, as 'YYYY-MM': its billing period's for a card, otherwise its own. */
+  readonly dashboardMonthOf = computed<(date: string) => string>(() => {
+    const billing = this.dashboardBilling();
+    return billing ? date => periodOf(billing, date).month : date => date.slice(0, 7);
+  });
+
   readonly monthTransactions = computed(() => {
     const month = this.selectedMonth();
-    return this.dashboardTransactions().filter(t => t.date.startsWith(month));
+    const monthOf = this.dashboardMonthOf();
+    return this.dashboardTransactions().filter(t => monthOf(t.date) === month);
   });
 
   readonly monthIncome = computed(() =>
@@ -134,7 +157,8 @@ export class TransactionService {
 
   private readonly previousMonthTransactions = computed(() => {
     const month = shiftMonth(this.selectedMonth(), -1);
-    return this.dashboardTransactions().filter(t => t.date.startsWith(month));
+    const monthOf = this.dashboardMonthOf();
+    return this.dashboardTransactions().filter(t => monthOf(t.date) === month);
   });
 
   readonly previousMonthIncome = computed(() =>

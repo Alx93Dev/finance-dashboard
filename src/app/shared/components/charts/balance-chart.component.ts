@@ -22,12 +22,12 @@ export interface BalancePoint {
  * Accumulated balance at the end of each month, from the first month with
  * transactions to the last. Months without movements repeat the previous value.
  */
-export function balanceTrend(transactions: Transaction[]): BalancePoint[] {
+export function balanceTrend(transactions: Transaction[], monthOf = (date: string) => date.slice(0, 7)): BalancePoint[] {
   if (transactions.length === 0) return [];
 
   const netByMonth = new Map<string, number>();
   for (const t of transactions) {
-    const month = t.date.slice(0, 7);
+    const month = monthOf(t.date);
     const signed = t.type === 'income' ? t.amount : -t.amount;
     netByMonth.set(month, (netByMonth.get(month) ?? 0) + signed);
   }
@@ -67,7 +67,7 @@ export class BalanceChartComponent {
 
   constructor() {
     effect(() => {
-      const points = balanceTrend(this.transactionService.dashboardTransactions());
+      const points = balanceTrend(this.transactionService.dashboardTransactions(), this.transactionService.dashboardMonthOf());
       const selected = this.transactionService.selectedMonth();
       const colors = chartThemeColors(this.themeService.theme());
 

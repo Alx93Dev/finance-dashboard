@@ -289,6 +289,41 @@ describe('TransactionService', () => {
       expect(service.dashboardTransactions()).toHaveLength(3);
     });
 
+    it('should go by billing period when the dashboard shows a card with a closing day', () => {
+      localStorage.setItem(SEEDED_KEY, 'true');
+      localStorage.setItem('schema_version', '8');
+      localStorage.setItem('accounts', JSON.stringify([
+        { id: 'main', name: 'Cuenta principal', initialBalance: 0, currency: 'CLP' },
+        { id: 'card', name: 'Tarjeta', initialBalance: 0, currency: 'CLP', billing: { closingDay: 19, closings: ['2026-09-17'] } },
+      ]));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([
+        { id: 'a', description: 'Panadería', amount: 2790,  categoryId: '3', date: '2026-08-20', type: 'expense', accountId: 'card' },
+        { id: 'b', description: 'Comisión',  amount: 6962,  categoryId: '8', date: '2026-09-17', type: 'expense', accountId: 'card' },
+        { id: 'c', description: 'Outlet',    amount: 49980, categoryId: '8', date: '2026-09-18', type: 'expense', accountId: 'card' },
+        { id: 'd', description: 'Almuerzo',  amount: 8000,  categoryId: '3', date: '2026-08-19', type: 'expense', accountId: 'card' },
+        { id: 'e', description: 'Sueldo',    amount: 900000, categoryId: '1', date: '2026-09-05', type: 'income', accountId: 'main' },
+      ]));
+      const service = createService();
+      service.selectedMonth.set('2026-09');
+      expect(service.dashboardPeriod()).toBeNull();
+      expect(service.monthExpenses()).toBe(6962 + 49980);
+
+      service.dashboardAccount.set('card');
+      expect(service.dashboardPeriod()).toEqual({ month: '2026-09', start: '2026-08-20', end: '2026-09-17' });
+      expect(service.monthTransactions().map(t => t.id).sort()).toEqual(['a', 'b']);
+      expect(service.monthExpenses()).toBe(2790 + 6962);
+      expect(service.previousMonthExpenses()).toBe(8000);
+      expect(service.dashboardMonthOf()('2026-09-18')).toBe('2026-10');
+
+      service.nextMonth();
+      expect(service.dashboardPeriod()).toEqual({ month: '2026-10', start: '2026-09-18', end: '2026-10-19' });
+      expect(service.monthExpenses()).toBe(49980);
+
+      service.dashboardAccount.set('main');
+      expect(service.dashboardPeriod()).toBeNull();
+      expect(service.dashboardMonthOf()('2026-09-18')).toBe('2026-09');
+    });
+
     it('should shift month keys by any number of months', () => {
       expect(shiftMonth('2025-11', 3)).toBe('2026-02');
       expect(shiftMonth('2025-03', -15)).toBe('2023-12');

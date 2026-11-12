@@ -41,20 +41,25 @@ import { SampleDataBannerComponent } from '../../shared/components/sample-data-b
               type="button"
               (click)="tx.previousMonth()"
               class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-              aria-label="Mes anterior"
+              [attr.aria-label]="tx.dashboardPeriod() ? 'Período anterior' : 'Mes anterior'"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
               </svg>
             </button>
-            <p class="min-w-36 text-center text-sm font-medium text-gray-900 dark:text-gray-100 capitalize" aria-live="polite">
-              {{ tx.selectedMonth() + '-01' | date:'MMMM y' }}
+            <p class="min-w-36 text-center text-sm font-medium text-gray-900 dark:text-gray-100" aria-live="polite">
+              <span class="capitalize">{{ tx.selectedMonth() + '-01' | date:'MMMM y' }}</span>
+              @if (tx.dashboardPeriod(); as period) {
+                <span id="dashboard-period" class="block text-xs font-normal text-gray-500 dark:text-gray-400">
+                  Facturación {{ period.start | date:'d MMM' }} – {{ period.end | date:'d MMM' }}
+                </span>
+              }
             </p>
             <button
               type="button"
               (click)="tx.nextMonth()"
               class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-              aria-label="Mes siguiente"
+              [attr.aria-label]="tx.dashboardPeriod() ? 'Período siguiente' : 'Mes siguiente'"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
@@ -95,7 +100,7 @@ import { SampleDataBannerComponent } from '../../shared/components/sample-data-b
               Aún no tienes transacciones.
               <a routerLink="/transactions" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">Agrega la primera</a>
             } @else {
-              No hay movimientos en este mes.
+              No hay movimientos en {{ tx.dashboardPeriod() ? 'este período de facturación' : 'este mes' }}.
             }
           </p>
         }

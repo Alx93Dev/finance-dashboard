@@ -255,9 +255,12 @@ export class TransactionFormComponent implements OnInit {
   /** Currency of the chosen account, which the amount is in. */
   protected readonly currency = computed(() => this.accounts.getById(this.selectedAccount())?.currency ?? 'CLP');
 
-  protected readonly filteredCategories = computed(() =>
-    this.transactionService.categories().filter(c => c.type === this.selectedType())
-  );
+  /** Active categories of the chosen type, plus the edited transaction's own one if it was archived since. */
+  protected readonly filteredCategories = computed(() => {
+    const ownId = this.editingTransaction()?.categoryId;
+    return this.transactionService.categories()
+      .filter(c => c.type === this.selectedType() && (!c.archived || c.id === ownId));
+  });
 
   ngOnInit(): void {
     const transaction = this.editingTransaction();

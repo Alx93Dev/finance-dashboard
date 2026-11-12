@@ -79,6 +79,9 @@ export class TransactionService {
     this.storage.get<Category[]>(CATEGORIES_KEY, DEFAULT_CATEGORIES)
   );
 
+  /** Categories offered for new movements: every one that is not archived. */
+  readonly activeCategories = computed(() => this.categories().filter(c => !c.archived));
+
   readonly totalIncome = computed(() =>
     this.valuedTransactions()
       .filter(t => t.type === 'income')
@@ -230,6 +233,24 @@ export class TransactionService {
     return created;
   }
 
+  /**
+   * Archives a category, or brings it back. Archived categories keep their
+   * transactions but are no longer offered for new ones. At least one
+   * category of each type must stay active.
+   */
+  setCategoryArchived(id: string, archived: boolean): void {
+    const category = this.getCategoryById(id);
+    if (!category || !!category.archived === archived) return;
+    if (archived && !this.hasOtherActive(category)) {
+      throw new Error('Debe quedar al menos una categoría activa de este tipo.');
+    }
+    this.setCategories(this.categories().map(c => {
+      if (c.id !== id) return c;
+      const { archived: _, ...rest } = c;
+      return archived ? { ...rest, archived: true } : rest;
+    }));
+  }
+
   /** Renames or recolors a category. Its type is fixed, since transactions depend on it. */
   updateCategory(id: string, changes: Pick<Category, 'name' | 'color'>): void {
     this.setCategories(this.categories().map(c => (c.id === id ? { ...c, ...changes } : c)));
@@ -250,6 +271,9 @@ export class TransactionService {
     const sameType = this.categories().filter(c => c.type === category.type);
     if (sameType.length <= 1) {
       throw new Error('Debe quedar al menos una categoría de este tipo.');
+    }
+    if (!category.archived && !this.hasOtherActive(category)) {
+      throw new Error('Debe quedar al menos una categoría activa de este tipo.');
     }
     if (this.categoryUsage(id) > 0) {
       const replacement = sameType.find(c => c.id === replacementId && c.id !== id);
@@ -288,6 +312,10 @@ export class TransactionService {
     const dates = this.transactions().map(t => t.date);
     if (dates.length === 0) return null;
     return dates.reduce((latest, date) => (date > latest ? date : latest)).slice(0, 7);
+  }
+
+  private hasOtherActive(category: Category): boolean {
+    return this.categories().some(c => c.type === category.type && c.id !== category.id && !c.archived);
   }
 
   private setCategories(categories: Category[]): void {

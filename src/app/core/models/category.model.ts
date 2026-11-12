@@ -5,6 +5,8 @@ export interface Category {
   name: string;
   type: CategoryType;
   color: string;
+  /** Hidden when picking a category for new movements, but kept for history and reports. */
+  archived?: boolean;
 }
 
 /** Colors offered for new categories, in order. */

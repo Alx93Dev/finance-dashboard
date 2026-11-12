@@ -116,6 +116,14 @@ describe('parseBackup', () => {
       .toThrow('metas dañadas');
   });
 
+  it('should keep which categories are archived', () => {
+    const categories = [
+      { id: 'a', name: 'Activa', type: 'expense', color: '#000' },
+      { id: 'b', name: 'Archivada', type: 'expense', color: '#000', archived: true },
+    ];
+    expect(parseBackup(backupText({ categories }), 7).categories).toEqual(categories);
+  });
+
   it('should reject a backup with a damaged category', () => {
     expect(() => parseBackup(backupText({ categories: [{ id: 'x', name: 'Sin tipo', color: '#000' }] }), 7))
       .toThrow('categorías dañadas');

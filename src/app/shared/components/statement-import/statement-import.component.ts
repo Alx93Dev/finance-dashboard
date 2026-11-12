@@ -194,8 +194,8 @@ export class StatementImportComponent {
   protected readonly mode = signal<AmountMode>('signed');
   protected readonly accountId = signal(this.accounts.defaultId());
 
-  protected readonly expenseCategories = computed(() => this.tx.categories().filter(c => c.type === 'expense'));
-  protected readonly incomeCategories = computed(() => this.tx.categories().filter(c => c.type === 'income'));
+  protected readonly expenseCategories = computed(() => this.tx.activeCategories().filter(c => c.type === 'expense'));
+  protected readonly incomeCategories = computed(() => this.tx.activeCategories().filter(c => c.type === 'income'));
   // "Otros"-style catch-all categories are usually last.
   protected readonly expenseCategory = signal(this.expenseCategories().at(-1)?.id ?? '');
   protected readonly incomeCategory = signal(this.incomeCategories().at(-1)?.id ?? '');

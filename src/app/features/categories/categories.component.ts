@@ -9,7 +9,10 @@ import { Category, CategoryType, unusedColor } from '../../core/models/category.
 interface Group {
   type: CategoryType;
   title: string;
+  /** Active ones first, then the archived ones. */
   categories: Category[];
+  /** How many are not archived. */
+  active: number;
 }
 
 interface PendingDelete {
@@ -28,7 +31,7 @@ const INPUT = 'px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm fo
   template: `
     <main class="max-w-3xl mx-auto px-4 py-8" id="main-content">
       <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Categorías</h1>
-      <p class="text-gray-500 dark:text-gray-400 text-sm mt-1 mb-6">Renombra, cambia el color o agrega tus propias categorías.</p>
+      <p class="text-gray-500 dark:text-gray-400 text-sm mt-1 mb-6">Renombra, cambia el color o agrega tus propias categorías. Archiva las que ya no usas para que no aparezcan al agregar movimientos, sin perder su historial.</p>
 
       @if (error(); as text) {
         <p class="mb-4 px-4 py-3 rounded-xl bg-red-50 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300" role="alert">{{ text }}</p>
@@ -40,7 +43,7 @@ const INPUT = 'px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm fo
           <ul class="divide-y divide-gray-100 dark:divide-gray-800">
             @for (category of group.categories; track category.id) {
               <li class="px-5 py-3">
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3" [class.opacity-60]="category.archived">
                   <input
                     type="color"
                     [value]="category.color"
@@ -56,13 +59,35 @@ const INPUT = 'px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm fo
                     [class]="inputClass + ' flex-1 min-w-0'"
                     [attr.aria-label]="'Nombre de ' + category.name"
                   />
-                  <span class="hidden sm:inline w-28 text-right text-xs text-gray-400 dark:text-gray-500 tabular-nums">{{ usageLabel(category) }}</span>
+                  <span class="hidden sm:inline w-28 text-right text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                    @if (category.archived) {
+                      Archivada
+                    } @else {
+                      {{ usageLabel(category) }}
+                    }
+                  </span>
+                  @if (category.archived) {
+                    <button type="button" [class]="buttonClass" (click)="setArchived(category, false)" [attr.aria-label]="'Restaurar ' + category.name">
+                      Restaurar
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      [class]="buttonClass"
+                      (click)="setArchived(category, true)"
+                      [disabled]="group.active <= 1"
+                      [attr.title]="group.active <= 1 ? 'Debe quedar al menos una categoría activa' : null"
+                      [attr.aria-label]="'Archivar ' + category.name"
+                    >
+                      Archivar
+                    </button>
+                  }
                   <button
                     type="button"
                     [class]="buttonClass"
                     (click)="askDelete(category)"
-                    [disabled]="group.categories.length <= 1"
-                    [attr.title]="group.categories.length <= 1 ? 'Debe quedar al menos una categoría' : null"
+                    [disabled]="group.categories.length <= 1 || (!category.archived && group.active <= 1)"
+                    [attr.title]="group.categories.length <= 1 || (!category.archived && group.active <= 1) ? 'Debe quedar al menos una categoría activa' : null"
                     [attr.aria-label]="'Eliminar ' + category.name"
                   >
                     Eliminar
@@ -81,7 +106,7 @@ const INPUT = 'px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm fo
                         (change)="setReplacement($any($event.target).value)"
                       >
                         @for (other of group.categories; track other.id) {
-                          @if (other.id !== category.id) {
+                          @if (other.id !== category.id && !other.archived) {
                             <option [value]="other.id" [selected]="other.id === pendingDelete()!.replacementId">{{ other.name }}</option>
                           }
                         }
@@ -130,10 +155,12 @@ export class CategoriesComponent {
 
   protected readonly groups = computed<Group[]>(() => {
     const categories = this.tx.categories();
-    return [
-      { type: 'expense', title: 'Gastos', categories: categories.filter(c => c.type === 'expense') },
-      { type: 'income', title: 'Ingresos', categories: categories.filter(c => c.type === 'income') },
-    ];
+    const group = (type: CategoryType, title: string): Group => {
+      const ofType = categories.filter(c => c.type === type);
+      const active = ofType.filter(c => !c.archived);
+      return { type, title, categories: [...active, ...ofType.filter(c => c.archived)], active: active.length };
+    };
+    return [group('expense', 'Gastos'), group('income', 'Ingresos')];
   });
 
   protected readonly nextColor = computed(() => unusedColor(this.tx.categories()));
@@ -174,6 +201,16 @@ export class CategoriesComponent {
     form.reset();
   }
 
+  protected setArchived(category: Category, archived: boolean): void {
+    this.error.set(null);
+    this.pendingDelete.set(null);
+    try {
+      this.tx.setCategoryArchived(category.id, archived);
+    } catch (error) {
+      this.error.set((error as Error).message);
+    }
+  }
+
   protected askDelete(category: Category): void {
     this.error.set(null);
     const transactions = this.tx.categoryUsage(category.id);
@@ -186,7 +223,7 @@ export class CategoriesComponent {
       transactions > 0 ? (transactions === 1 ? '1 transacción' : `${transactions} transacciones`) : '',
       rules > 0 ? (rules === 1 ? '1 recurrente' : `${rules} recurrentes`) : '',
     ].filter(Boolean);
-    const replacement = this.tx.categories().find(c => c.type === category.type && c.id !== category.id)!;
+    const replacement = this.tx.activeCategories().find(c => c.type === category.type && c.id !== category.id)!;
     this.pendingDelete.set({ category, usage: parts.join(' y '), replacementId: replacement.id });
   }
 

@@ -104,7 +104,8 @@ function parseCategory(item: unknown): Category | null {
   ) {
     return null;
   }
-  return { id: c['id'], name: c['name'], color: c['color'], type: c['type'] };
+  const category: Category = { id: c['id'], name: c['name'], color: c['color'], type: c['type'] };
+  return c['archived'] === true ? { ...category, archived: true } : category;
 }
 
 function parseRecurring(item: unknown): Recurring | null {

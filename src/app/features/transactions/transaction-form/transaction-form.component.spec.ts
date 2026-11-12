@@ -45,6 +45,21 @@ describe('TransactionFormComponent', () => {
     expect(categoryOptions(root)).not.toContain('Sueldo');
   });
 
+  it('should hide archived categories, except the one of the edited transaction', async () => {
+    TestBed.inject(TransactionService).setCategoryArchived('5', true);
+    const fixture = TestBed.createComponent(TransactionFormComponent);
+    await fixture.whenStable();
+    expect(categoryOptions(fixture.nativeElement)).not.toContain('Entretenimiento');
+
+    const editing = TestBed.createComponent(TransactionFormComponent);
+    editing.componentRef.setInput('editingTransaction', {
+      id: 'a', description: 'Netflix', amount: 1000, categoryId: '5', date: '2025-01-05', type: 'expense', accountId: 'main',
+    });
+    await editing.whenStable();
+    expect(categoryOptions(editing.nativeElement)).toContain('Entretenimiento');
+    expect(editing.nativeElement.querySelector('#categoryId').value).toBe('5');
+  });
+
   it('should list income categories when editing an income', async () => {
     const income: Transaction = {
       id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income', accountId: 'main',

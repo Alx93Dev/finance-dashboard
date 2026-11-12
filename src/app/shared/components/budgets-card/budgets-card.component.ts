@@ -98,7 +98,7 @@ export class BudgetsCardComponent {
   protected readonly textClass = TEXT_CLASS;
   protected readonly editing = signal(false);
   protected readonly expenseCategories = computed(() =>
-    this.tx.categories().filter(c => c.type === 'expense')
+    this.tx.categories().filter(c => c.type === 'expense' && (!c.archived || this.budgets.limitFor(c.id) !== null))
   );
 
   protected barWidth(ratio: number): number {

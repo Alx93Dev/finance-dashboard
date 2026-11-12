@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { StatementImportComponent } from './statement-import.component';
 import { TransactionService } from '../../../core/services/transaction.service';
+import { parseCsv } from '../../../core/services/statement-import';
 
 const STATEMENT = [
   'Banco Ejemplo;Cuenta 123',
@@ -23,7 +24,7 @@ describe('StatementImportComponent', () => {
 
   async function render(text = STATEMENT) {
     const fixture = TestBed.createComponent(StatementImportComponent);
-    fixture.componentRef.setInput('text', text);
+    fixture.componentRef.setInput('rows', parseCsv(text));
     await fixture.whenStable();
     return { fixture, root: fixture.nativeElement as HTMLElement };
   }
@@ -48,7 +49,7 @@ describe('StatementImportComponent', () => {
     category.value = '3';
     category.dispatchEvent(new Event('change'));
     await fixture.whenStable();
-    Array.from(root.querySelectorAll('button')).find(b => b.textContent!.includes('Importar'))!.click();
+    Array.from(root.querySelectorAll('button')).find(b => /^Importar \d+$/.test(b.textContent!.trim()))!.click();
 
     const tx = TestBed.inject(TransactionService).transactions();
     expect(imported).toEqual([2]);
@@ -82,7 +83,7 @@ describe('StatementImportComponent', () => {
     expect(root.textContent).toContain('Gastos sin categoría');
     expect(root.textContent).toContain('Se crearán estas categorías: Transferencia (gasto), Transferencia (ingreso).');
 
-    Array.from(root.querySelectorAll('button')).find(b => b.textContent!.includes('Importar'))!.click();
+    Array.from(root.querySelectorAll('button')).find(b => /^Importar \d+$/.test(b.textContent!.trim()))!.click();
     await fixture.whenStable();
 
     const service = TestBed.inject(TransactionService);
@@ -96,6 +97,52 @@ describe('StatementImportComponent', () => {
     expect(categoryOf('Transfer de Juan')).toMatchObject({ name: 'Transferencia', type: 'income' });
     expect(categoryOf('Algo raro')).toMatchObject({ id: '8' });
     expect(service.categories().filter(c => c.name === 'Transferencia')).toHaveLength(2);
+  });
+
+  it('should flip the sign of credit card statements', async () => {
+    const { root } = await render([
+      'Detalle movimientos Tarjeta de Crédito',
+      'Monto facturado;50000;;Fecha de inicio;21/8/2026',
+      'Fecha;Código referencia;Descripción;Monto ($)',
+      '17-09-2026;1;MONTO CANCELADO;-40000',
+      '16-09-2026;2;LIBRERIA;12990',
+    ].join('\n'));
+    expect(root.querySelector<HTMLSelectElement>('#statement-mode')!.value).toBe('signed');
+    expect(root.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
+    expect(root.textContent).toContain('2 movimientos nuevos');
+    expect(root.textContent!.replace(/\s+/g, ' ')).toContain('LIBRERIA -$');
+  });
+
+  it('should use the balance column when the amount has no sign', async () => {
+    const { root } = await render([
+      'Fecha;Descripción;Monto $;Saldo Contable $',
+      '20-10-2026;COMPRA CAFE;1390;8841',
+      '19-10-2026;TRANSFER DE JUAN;40000;10231',
+      '18-10-2026;PAGO TARJETA;10000;-29769',
+    ].join('\n'));
+    expect(root.querySelector<HTMLSelectElement>('#statement-mode')!.value).toBe('balance');
+    expect(root.querySelector<HTMLSelectElement>('#statement-balance')!.value).toBe('3');
+    const text = root.textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('COMPRA CAFE -$');
+    expect(text).toContain('TRANSFER DE JUAN +$');
+  });
+
+  it('should leave out movements before the chosen date', async () => {
+    const { fixture, root } = await render();
+    expect(root.textContent).toContain('Tu último movimiento en esta cuenta es del 07/01/25.');
+
+    Array.from(root.querySelectorAll('button')).find(b => b.textContent!.includes('Importar solo lo posterior'))!.click();
+    await fixture.whenStable();
+    expect(root.querySelector<HTMLInputElement>('#statement-from')!.value).toBe('2025-01-08');
+    const status = root.querySelector('[role="status"]')!.textContent!.replace(/\s+/g, ' ');
+    expect(status).toContain('0 movimientos nuevos');
+    expect(status).toContain('3 son anteriores a la fecha elegida');
+
+    const from = root.querySelector<HTMLInputElement>('#statement-from')!;
+    from.value = '2025-01-06';
+    from.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    expect(root.querySelector('[role="status"]')!.textContent!.replace(/\s+/g, ' ')).toContain('1 movimiento nuevo · 1 es anterior');
   });
 
   it('should explain an empty file', async () => {

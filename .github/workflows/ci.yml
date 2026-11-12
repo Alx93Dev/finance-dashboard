@@ -30,7 +30,8 @@ jobs:
       - run: pnpm exec ng test --watch=false
 
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright 1.56 can't install its browser on ubuntu-latest (26.04) yet.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 

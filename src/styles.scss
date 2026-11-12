@@ -13,3 +13,17 @@
     min-height: 100dvh;
   }
 }
+
+@media print {
+  app-nav,
+  app-update-banner {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+    // Keep the category bars' colors on paper.
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

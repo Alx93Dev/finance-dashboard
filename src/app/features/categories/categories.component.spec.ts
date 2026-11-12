@@ -101,4 +101,50 @@ describe('CategoriesComponent', () => {
     await fixture.whenStable();
     expect(recurring.rules()[0].categoryId).toBe('3');
   });
+
+  it('should archive a category and restore it', async () => {
+    const fixture = TestBed.createComponent(CategoriesComponent);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const tx = TestBed.inject(TransactionService);
+
+    button(root, 'Archivar Transporte').click();
+    await fixture.whenStable();
+    expect(tx.getCategoryById('4')!.archived).toBe(true);
+    expect(tx.categoryUsage('4')).toBe(1);
+    expect(root.textContent).toContain('Archivada');
+    // Archived categories move to the end of their group.
+    const names = Array.from(root.querySelectorAll<HTMLInputElement>('section:first-of-type li input[type="text"]')).map(i => i.value);
+    expect(names.at(-1)).toBe('Transporte');
+
+    button(root, 'Restaurar Transporte').click();
+    await fixture.whenStable();
+    expect(tx.getCategoryById('4')!.archived).toBeUndefined();
+  });
+
+  it('should not archive the last active category of a type', async () => {
+    const fixture = TestBed.createComponent(CategoriesComponent);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+
+    button(root, 'Archivar Freelance').click();
+    await fixture.whenStable();
+    expect(button(root, 'Archivar Sueldo').disabled).toBe(true);
+    expect(button(root, 'Eliminar Sueldo').disabled).toBe(true);
+    expect(button(root, 'Eliminar Freelance').disabled).toBe(false);
+  });
+
+  it('should only offer active categories as a replacement when deleting', async () => {
+    const fixture = TestBed.createComponent(CategoriesComponent);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    TestBed.inject(TransactionService).setCategoryArchived('3', true);
+    await fixture.whenStable();
+
+    button(root, 'Eliminar Transporte').click();
+    await fixture.whenStable();
+    const options = Array.from(root.querySelectorAll<HTMLOptionElement>('#replacement-4 option')).map(o => o.textContent!.trim());
+    expect(options).not.toContain('Alimentación');
+    expect(options).toContain('Otros');
+  });
 });

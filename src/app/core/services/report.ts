@@ -80,3 +80,40 @@ export function yearReport(transactions: Transaction[], categories: Category[], 
     largestExpenses,
   };
 }
+
+/** How one year compares with the one before it. Percentages are whole numbers. */
+export interface YearComparison {
+  previousYear: number;
+  income: number | null;
+  expenses: number | null;
+  balance: number | null;
+  /** Difference in savings rate, in percentage points; null when either year has no income. */
+  savingsRatePoints: number | null;
+  /**
+   * Change in each expense category's total, keyed by category id.
+   * null means the category had no expenses the year before.
+   */
+  categories: Record<string, number | null>;
+}
+
+/** Percentage change from `previous` to `current`; null when there is nothing to compare against. */
+function change(current: number, previous: number): number | null {
+  return previous === 0 ? null : Math.round(((current - previous) / Math.abs(previous)) * 100);
+}
+
+export function compareYears(current: YearReport, previous: YearReport): YearComparison {
+  const before = new Map(previous.expensesByCategory.map(row => [row.category.id, row.total]));
+  const categories: Record<string, number | null> = {};
+  for (const row of current.expensesByCategory) categories[row.category.id] = change(row.total, before.get(row.category.id) ?? 0);
+
+  const rate = current.totals.savingsRate;
+  const previousRate = previous.totals.savingsRate;
+  return {
+    previousYear: previous.year,
+    income: change(current.totals.income, previous.totals.income),
+    expenses: change(current.totals.expenses, previous.totals.expenses),
+    balance: change(current.totals.balance, previous.totals.balance),
+    savingsRatePoints: rate === null || previousRate === null ? null : rate - previousRate,
+    categories,
+  };
+}

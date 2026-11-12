@@ -104,7 +104,8 @@ function parseCategory(item: unknown): Category | null {
   ) {
     return null;
   }
-  return { id: c['id'], name: c['name'], color: c['color'], type: c['type'] };
+  const category: Category = { id: c['id'], name: c['name'], color: c['color'], type: c['type'] };
+  return c['archived'] === true ? { ...category, archived: true } : category;
 }
 
 function parseRecurring(item: unknown): Recurring | null {
@@ -119,7 +120,9 @@ function parseRecurring(item: unknown): Recurring | null {
     (r['type'] !== 'income' && r['type'] !== 'expense') ||
     !Number.isFinite(amount) ||
     !Number.isInteger(day) || day < 1 || day > 31 ||
-    typeof r['lastMonth'] !== 'string' || !/^\d{4}-\d{2}$/.test(r['lastMonth'])
+    typeof r['lastMonth'] !== 'string' || !/^\d{4}-\d{2}$/.test(r['lastMonth']) ||
+    (r['frequency'] !== undefined && r['frequency'] !== 'weekly' && r['frequency'] !== 'monthly' && r['frequency'] !== 'yearly') ||
+    (r['lastDate'] !== undefined && (typeof r['lastDate'] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(r['lastDate'])))
   ) {
     return null;
   }
@@ -132,6 +135,8 @@ function parseRecurring(item: unknown): Recurring | null {
     accountId: typeof r['accountId'] === 'string' ? r['accountId'] : MAIN_ACCOUNT_ID,
     dayOfMonth: day,
     lastMonth: r['lastMonth'],
+    ...(r['frequency'] === 'weekly' || r['frequency'] === 'yearly' ? { frequency: r['frequency'] } : {}),
+    ...(typeof r['lastDate'] === 'string' ? { lastDate: r['lastDate'] } : {}),
   };
 }
 

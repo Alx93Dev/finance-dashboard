@@ -338,6 +338,32 @@ describe('TransactionService', () => {
 
       expect(() => service.removeCategory('1', null)).toThrow('al menos una categoría');
     });
+
+    it('should archive a category, keep its transactions and bring it back', () => {
+      const service = createService();
+      service.setCategoryArchived('4', true);
+
+      expect(service.getCategoryById('4')!.archived).toBe(true);
+      expect(service.activeCategories().map(c => c.id)).not.toContain('4');
+      expect(stored().map(t => t.categoryId)).toEqual(['4', '4']);
+      expect(JSON.parse(localStorage.getItem('categories')!)).toContainEqual(
+        { id: '4', name: 'Transporte', type: 'expense', color: '#ef4444', archived: true },
+      );
+
+      service.setCategoryArchived('4', false);
+      expect(service.getCategoryById('4')).toEqual({ id: '4', name: 'Transporte', type: 'expense', color: '#ef4444' });
+    });
+
+    it('should keep at least one active category of each type', () => {
+      const service = createService();
+      service.setCategoryArchived('2', true);
+
+      expect(() => service.setCategoryArchived('1', true)).toThrow('al menos una categoría activa');
+      expect(() => service.removeCategory('1', null)).toThrow('al menos una categoría activa');
+      // An archived category can still be deleted.
+      service.removeCategory('2', null);
+      expect(service.getCategoryById('2')).toBeUndefined();
+    });
   });
 
   it('should look up categories by id', () => {

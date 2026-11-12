@@ -106,6 +106,12 @@ describe('parseBackup', () => {
       .toThrow('presupuestos dañados');
   });
 
+  it('should keep the frequency of recurring rules', () => {
+    const weekly = { ...RECURRING[0], frequency: 'weekly', lastDate: '2025-01-27' };
+    expect(parseBackup(backupText({ recurring: [weekly] }), 7).recurring).toEqual([expect.objectContaining({ frequency: 'weekly', lastDate: '2025-01-27' })]);
+    expect(() => parseBackup(backupText({ recurring: [{ ...RECURRING[0], frequency: 'daily' }] }), 7)).toThrow('recurrentes dañadas');
+  });
+
   it('should reject a backup with a damaged recurring rule', () => {
     expect(() => parseBackup(backupText({ recurring: [{ ...RECURRING[0], dayOfMonth: 32 }] }), 7))
       .toThrow('recurrentes dañadas');
@@ -114,6 +120,14 @@ describe('parseBackup', () => {
   it('should reject a backup with a damaged goal', () => {
     expect(() => parseBackup(backupText({ goals: [{ ...GOALS[0], target: 0 }] }), 7))
       .toThrow('metas dañadas');
+  });
+
+  it('should keep which categories are archived', () => {
+    const categories = [
+      { id: 'a', name: 'Activa', type: 'expense', color: '#000' },
+      { id: 'b', name: 'Archivada', type: 'expense', color: '#000', archived: true },
+    ];
+    expect(parseBackup(backupText({ categories }), 7).categories).toEqual(categories);
   });
 
   it('should reject a backup with a damaged category', () => {

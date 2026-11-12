@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DOCUMENT, computed, inject, linkedSignal } from '@angular/core';
 import { CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { TransactionService } from '../../core/services/transaction.service';
-import { reportYears, yearReport } from '../../core/services/report';
+import { compareYears, reportYears, yearReport } from '../../core/services/report';
 
 const ARROW = 'p-2 rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed dark:text-gray-400 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600';
 const CARD = 'bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 dark:border-gray-800 shadow-sm';
@@ -14,8 +14,15 @@ const CARD = 'bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 d
   template: `
     <main class="max-w-5xl mx-auto px-4 py-8" id="main-content">
       <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Reportes</h1>
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Reportes<span class="hidden print:inline"> {{ year() }}</span></h1>
         @if (years().length > 0) {
+          <div class="flex items-center gap-2 print:hidden">
+          <button type="button" (click)="exportPdf()" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 dark:text-gray-200 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" />
+            </svg>
+            Exportar PDF
+          </button>
           <div class="flex items-center gap-1" role="group" aria-label="Seleccionar año">
             <button type="button" [class]="arrowClass" (click)="shiftYear(1)" [disabled]="!hasOlder()" aria-label="Año anterior">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -29,6 +36,7 @@ const CARD = 'bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 d
               </svg>
             </button>
           </div>
+          </div>
         }
       </div>
 
@@ -38,18 +46,38 @@ const CARD = 'bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 d
           <div [class]="cardClass">
             <p class="text-xs text-gray-500 dark:text-gray-400">Ingresos</p>
             <p class="mt-1 text-lg font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{{ r.totals.income | currency:'$':'symbol':'1.0-0' }}</p>
+            @if (comparison(); as c) {
+              @if (trend(c.income, true); as tr) {
+                <p class="mt-1 text-xs font-medium" [class]="tr.cls">{{ tr.text }} vs {{ c.previousYear }}</p>
+              }
+            }
           </div>
           <div [class]="cardClass">
             <p class="text-xs text-gray-500 dark:text-gray-400">Gastos</p>
             <p class="mt-1 text-lg font-semibold tabular-nums text-red-500 dark:text-red-400">{{ r.totals.expenses | currency:'$':'symbol':'1.0-0' }}</p>
+            @if (comparison(); as c) {
+              @if (trend(c.expenses, false); as tr) {
+                <p class="mt-1 text-xs font-medium" [class]="tr.cls">{{ tr.text }} vs {{ c.previousYear }}</p>
+              }
+            }
           </div>
           <div [class]="cardClass">
             <p class="text-xs text-gray-500 dark:text-gray-400">Balance</p>
             <p class="mt-1 text-lg font-semibold tabular-nums" [class]="r.totals.balance < 0 ? 'text-red-600 dark:text-red-400' : 'text-indigo-600 dark:text-indigo-400'">{{ r.totals.balance | currency:'$':'symbol':'1.0-0' }}</p>
+            @if (comparison(); as c) {
+              @if (trend(c.balance, true); as tr) {
+                <p class="mt-1 text-xs font-medium" [class]="tr.cls">{{ tr.text }} vs {{ c.previousYear }}</p>
+              }
+            }
           </div>
           <div [class]="cardClass">
             <p class="text-xs text-gray-500 dark:text-gray-400">Tasa de ahorro</p>
             <p class="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100">{{ r.totals.savingsRate === null ? '—' : r.totals.savingsRate + '%' }}</p>
+            @if (comparison(); as c) {
+              @if (trend(c.savingsRatePoints, true, ' pts'); as tr) {
+                <p class="mt-1 text-xs font-medium" [class]="tr.cls">{{ tr.text }} vs {{ c.previousYear }}</p>
+              }
+            }
           </div>
         </section>
 
@@ -97,7 +125,16 @@ const CARD = 'bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 d
                     <div class="mt-1.5 h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden" aria-hidden="true">
                       <div class="h-full rounded-full" [style.width.%]="row.share * 100" [style.background-color]="row.category.color"></div>
                     </div>
-                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ row.monthlyAverage | currency:'$':'symbol':'1.0-0' }} al mes en promedio</p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      {{ row.monthlyAverage | currency:'$':'symbol':'1.0-0' }} al mes en promedio
+                      @if (comparison(); as c) {
+                        @if (trend(c.categories[row.category.id], false); as tr) {
+                          · <span class="font-medium" [class]="tr.cls">{{ tr.text }} vs {{ c.previousYear }}</span>
+                        } @else {
+                          · sin gastos en {{ c.previousYear }}
+                        }
+                      }
+                    </p>
                   </li>
                 }
               </ul>
@@ -134,6 +171,7 @@ const CARD = 'bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-100 d
 })
 export class ReportsComponent {
   private readonly tx = inject(TransactionService);
+  private readonly document = inject(DOCUMENT);
 
   protected readonly arrowClass = ARROW;
   protected readonly cardClass = CARD;
@@ -148,6 +186,41 @@ export class ReportsComponent {
   protected readonly report = computed(() =>
     this.years().length === 0 ? null : yearReport(this.tx.valuedTransactions(), this.tx.categories(), this.year())
   );
+
+  /** The selected year against the one before it, when that year has transactions. */
+  protected readonly comparison = computed(() => {
+    const previous = this.year() - 1;
+    if (!this.years().includes(previous)) return null;
+    const transactions = this.tx.valuedTransactions();
+    const categories = this.tx.categories();
+    return compareYears(yearReport(transactions, categories, this.year()), yearReport(transactions, categories, previous));
+  });
+
+  /** Text and color for a change; null hides it. Rises are green unless `higherIsBetter` is false. */
+  protected trend(value: number | null | undefined, higherIsBetter: boolean, unit = '%'): { text: string; cls: string } | null {
+    if (value === null || value === undefined) return null;
+    const arrow = value > 0 ? '▲ +' : value < 0 ? '▼ ' : '= ';
+    const cls = value === 0
+      ? 'text-gray-400 dark:text-gray-500'
+      : value > 0 === higherIsBetter ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400';
+    return { text: `${arrow}${value}${unit}`, cls };
+  }
+
+  /**
+   * Opens the print dialog, where the report can be saved as PDF.
+   * Prints in light mode, since a dark page wastes ink and reads badly on paper.
+   */
+  protected exportPdf(): void {
+    const root = this.document.documentElement;
+    const window = this.document.defaultView;
+    if (!window) return;
+    const wasDark = root.classList.contains('dark');
+    if (wasDark) {
+      root.classList.remove('dark');
+      window.addEventListener('afterprint', () => root.classList.add('dark'), { once: true });
+    }
+    window.print();
+  }
 
   /** Moves through the years that have data; +1 is older. */
   protected shiftYear(step: number): void {

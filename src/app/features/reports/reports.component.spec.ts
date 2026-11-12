@@ -46,4 +46,40 @@ describe('ReportsComponent', () => {
     expect(root.textContent).toContain('Regalo');
     expect(button(root, 'Año anterior').disabled).toBe(true);
   });
+
+  it('should compare the year with the one before', async () => {
+    localStorage.setItem('transactions', JSON.stringify([
+      ...STORED,
+      { id: 'd', description: 'Sueldo', amount: 800000, categoryId: '1', date: '2024-12-31', type: 'income', accountId: 'main' },
+    ]));
+    const { fixture, root } = await render();
+
+    // Income 1.000.000 vs 800.000, expenses 400.000 vs 60.000
+    expect(root.textContent).toContain('▲ +25% vs 2024');
+    expect(root.textContent).toContain('▲ +567% vs 2024');
+    expect(root.textContent).toContain('sin gastos en 2024');
+
+    button(root, 'Año anterior').click();
+    await fixture.whenStable();
+    expect(root.textContent).not.toContain('vs 2023');
+  });
+
+  it('should print the report in light mode and restore dark mode afterwards', async () => {
+    localStorage.setItem('transactions', JSON.stringify(STORED));
+    const { root } = await render();
+    document.documentElement.classList.add('dark');
+    let darkWhilePrinting: boolean | undefined;
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {
+      darkWhilePrinting = document.documentElement.classList.contains('dark');
+    });
+
+    [...root.querySelectorAll('button')].find(b => b.textContent!.includes('Exportar PDF'))!.click();
+    expect(print).toHaveBeenCalled();
+    expect(darkWhilePrinting).toBe(false);
+
+    window.dispatchEvent(new Event('afterprint'));
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    document.documentElement.classList.remove('dark');
+    print.mockRestore();
+  });
 });

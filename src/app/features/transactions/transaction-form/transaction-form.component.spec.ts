@@ -45,6 +45,21 @@ describe('TransactionFormComponent', () => {
     expect(categoryOptions(root)).not.toContain('Sueldo');
   });
 
+  it('should hide archived categories, except the one of the edited transaction', async () => {
+    TestBed.inject(TransactionService).setCategoryArchived('5', true);
+    const fixture = TestBed.createComponent(TransactionFormComponent);
+    await fixture.whenStable();
+    expect(categoryOptions(fixture.nativeElement)).not.toContain('Entretenimiento');
+
+    const editing = TestBed.createComponent(TransactionFormComponent);
+    editing.componentRef.setInput('editingTransaction', {
+      id: 'a', description: 'Netflix', amount: 1000, categoryId: '5', date: '2025-01-05', type: 'expense', accountId: 'main',
+    });
+    await editing.whenStable();
+    expect(categoryOptions(editing.nativeElement)).toContain('Entretenimiento');
+    expect(editing.nativeElement.querySelector('#categoryId').value).toBe('5');
+  });
+
   it('should list income categories when editing an income', async () => {
     const income: Transaction = {
       id: 'a', description: 'Sueldo', amount: 1000, categoryId: '1', date: '2025-01-31', type: 'income', accountId: 'main',
@@ -81,6 +96,34 @@ describe('TransactionFormComponent', () => {
     expect(TestBed.inject(TransactionService).transactions().some(t => t.description === 'Netflix')).toBe(true);
     expect(TestBed.inject(RecurringService).rules()).toEqual([
       expect.objectContaining({ description: 'Netflix', amount: 9000, categoryId: '5', dayOfMonth: 15, lastMonth: '2025-01' }),
+    ]);
+  });
+
+  it('should start a weekly rule when that frequency is chosen', async () => {
+    const fixture = TestBed.createComponent(TransactionFormComponent);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const fill = (selector: string, value: string, event = 'input') => {
+      const el = root.querySelector<HTMLInputElement | HTMLSelectElement>(selector)!;
+      el.value = value;
+      el.dispatchEvent(new Event(event));
+    };
+    fill('#description', 'Feria');
+    fill('#amount', '15000');
+    fill('#categoryId', '3', 'change');
+    fill('#date', '2025-01-27');
+    expect(root.querySelector('#frequency')).toBeNull();
+    const repeat = root.querySelector<HTMLInputElement>('#repeat')!;
+    repeat.checked = true;
+    repeat.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    fill('#frequency', 'weekly', 'change');
+    await fixture.whenStable();
+    expect(root.textContent).toContain('el mismo día de cada semana');
+    root.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+
+    expect(TestBed.inject(RecurringService).rules()).toEqual([
+      expect.objectContaining({ description: 'Feria', frequency: 'weekly', lastDate: '2025-01-27' }),
     ]);
   });
 

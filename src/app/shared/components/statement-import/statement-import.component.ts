@@ -10,9 +10,10 @@ import {
   StatementRow,
   detectColumns,
   findHeaderRow,
+  hasOnlyPositiveAmounts,
   isSameMovement,
+  looksLikeCreditCard,
   normalize,
-  parseCsv,
   readStatement,
 } from '../../../core/services/statement-import';
 
@@ -22,7 +23,7 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
 const SELECT = 'w-full px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100';
 const PREVIEW_ROWS = 5;
 
-type AmountMode = 'signed' | 'split';
+type AmountMode = 'signed' | 'split' | 'balance';
 
 @Component({
   selector: 'app-statement-import',
@@ -70,9 +71,10 @@ type AmountMode = 'signed' | 'split';
             <select id="statement-mode" [class]="selectClass" (change)="setMode($any($event.target).value)">
               <option value="signed" [selected]="mode() === 'signed'">Una columna (negativo = gasto)</option>
               <option value="split" [selected]="mode() === 'split'">Columnas de cargo y abono</option>
+              <option value="balance" [selected]="mode() === 'balance'">Monto sin signo y columna de saldo</option>
             </select>
           </div>
-          @if (mode() === 'signed') {
+          @if (mode() !== 'split') {
             <div>
               <label for="statement-amount" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Monto</label>
               <select id="statement-amount" [class]="selectClass" (change)="setColumn('amount', $event)">
@@ -81,7 +83,24 @@ type AmountMode = 'signed' | 'split';
                 }
               </select>
             </div>
-          } @else {
+          }
+          @if (mode() === 'balance') {
+            <div>
+              <label for="statement-balance" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Saldo</label>
+              <select id="statement-balance" [class]="selectClass" (change)="setColumn('balance', $event)">
+                @for (name of header(); track $index) {
+                  <option [value]="$index" [selected]="$index === mapping().balance">{{ name || 'Columna ' + ($index + 1) }}</option>
+                }
+              </select>
+            </div>
+          }
+          @if (mode() === 'signed') {
+            <label class="flex items-center gap-2 self-end pb-1.5 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900" [checked]="positiveIsExpense()" (change)="positiveIsExpense.set($any($event.target).checked)" />
+              Positivo = gasto (tarjeta de crédito)
+            </label>
+          }
+          @if (mode() === 'split') {
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label for="statement-debit" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Cargos (gastos)</label>
@@ -171,8 +190,8 @@ export class StatementImportComponent {
   private readonly tx = inject(TransactionService);
   protected readonly accounts = inject(AccountService);
 
-  /** Text of the CSV file to import. */
-  readonly text = input.required<string>();
+  /** Cells of the statement file, as read by `readStatementFile`. */
+  readonly rows = input.required<string[][]>();
   /** Emits how many transactions were added. */
   readonly imported = output<number>();
   readonly closed = output<void>();
@@ -183,15 +202,20 @@ export class StatementImportComponent {
   protected readonly previewRows = PREVIEW_ROWS;
 
   private readonly table = computed(() => {
-    const rows = parseCsv(this.text());
+    const rows = this.rows();
     const headerIndex = findHeaderRow(rows);
-    return { header: rows[headerIndex] ?? [], data: rows.slice(headerIndex + 1) };
+    return {
+      header: rows[headerIndex] ?? [],
+      data: rows.slice(headerIndex + 1),
+      creditCard: looksLikeCreditCard(rows, headerIndex),
+    };
   });
   protected readonly header = computed(() => this.table().header);
 
-  protected readonly mapping = signal<ColumnMapping>({ date: 0, description: NO_COLUMN, amount: NO_COLUMN, debit: NO_COLUMN, credit: NO_COLUMN, category: NO_COLUMN });
+  protected readonly mapping = signal<ColumnMapping>({ date: 0, description: NO_COLUMN, amount: NO_COLUMN, debit: NO_COLUMN, credit: NO_COLUMN, category: NO_COLUMN, balance: NO_COLUMN });
   protected readonly hasCategoryColumn = computed(() => (this.mapping().category ?? NO_COLUMN) !== NO_COLUMN);
   protected readonly mode = signal<AmountMode>('signed');
+  protected readonly positiveIsExpense = signal(false);
   protected readonly accountId = signal(this.accounts.defaultId());
 
   protected readonly expenseCategories = computed(() => this.tx.categories().filter(c => c.type === 'expense'));
@@ -202,10 +226,11 @@ export class StatementImportComponent {
 
   protected readonly statement = computed(() => {
     const mapping = this.mapping();
-    const effective = this.mode() === 'signed'
-      ? { ...mapping, debit: NO_COLUMN, credit: NO_COLUMN }
-      : { ...mapping, amount: NO_COLUMN };
-    return readStatement(this.table().data, effective);
+    const mode = this.mode();
+    const effective = mode === 'split'
+      ? { ...mapping, amount: NO_COLUMN, balance: NO_COLUMN }
+      : { ...mapping, debit: NO_COLUMN, credit: NO_COLUMN, balance: mode === 'balance' ? mapping.balance : NO_COLUMN };
+    return readStatement(this.table().data, effective, { positiveIsExpense: mode === 'signed' && this.positiveIsExpense() });
   });
 
   private readonly split = computed(() => {
@@ -235,11 +260,14 @@ export class StatementImportComponent {
   constructor() {
     // Start from the columns we can recognize every time a new file arrives.
     effect(() => {
-      const header = this.header();
+      const { header, data, creditCard } = this.table();
       const detected = detectColumns(header);
       const useSplit = detected.amount === NO_COLUMN && (detected.debit !== NO_COLUMN || detected.credit !== NO_COLUMN);
+      const useBalance = !useSplit && detected.amount !== NO_COLUMN && detected.balance !== NO_COLUMN &&
+        hasOnlyPositiveAmounts(data, detected.amount);
       const fallback = (index: number, other: number) => (index === NO_COLUMN ? other : index);
-      this.mode.set(useSplit ? 'split' : 'signed');
+      this.mode.set(useSplit ? 'split' : useBalance ? 'balance' : 'signed');
+      this.positiveIsExpense.set(creditCard);
       this.mapping.set({
         date: fallback(detected.date, 0),
         description: detected.description,
@@ -247,6 +275,7 @@ export class StatementImportComponent {
         debit: fallback(detected.debit, 0),
         credit: fallback(detected.credit, 0),
         category: detected.category,
+        balance: fallback(detected.balance ?? NO_COLUMN, header.length - 1),
       });
     });
   }

@@ -5,6 +5,7 @@ import { AccountService } from '../../../core/services/account.service';
 import { BackupService } from '../../../core/services/backup.service';
 import { BackupData, parseBackup, toCsv } from '../../../core/services/data-transfer';
 import { StatementImportComponent } from '../statement-import/statement-import.component';
+import { StatementFileError, readStatementFile } from '../../../core/services/statement-file';
 import { SyncPanelComponent } from '../sync-panel/sync-panel.component';
 import { SyncService } from '../../../core/sync/sync.service';
 
@@ -22,15 +23,6 @@ function download(filename: string, content: string, type: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Bank exports are often Windows-1252 rather than UTF-8; accents would break otherwise. */
-export function decodeText(bytes: ArrayBuffer): string {
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    return new TextDecoder('windows-1252').decode(bytes);
-  }
-}
-
 const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600';
 
 @Component({
@@ -43,10 +35,10 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
         @if (sync.signedIn()) {
           Tus datos se guardan en este navegador y en tu cuenta. También puedes descargar un respaldo
-          o importar la cartola de tu banco en CSV.
+          o importar la cartola de tu banco en CSV o Excel.
         } @else {
           Tus transacciones solo se guardan en este navegador. Descarga un respaldo para no perderlas,
-          o importa la cartola de tu banco en CSV.
+          o importa la cartola de tu banco en CSV o Excel.
         }
       </p>
 
@@ -59,12 +51,12 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
         </label>
         <label [class]="buttonClass + ' cursor-pointer'">
           Importar cartola
-          <input type="file" accept=".csv,text/csv" class="sr-only" (change)="onStatementSelected($event)" />
+          <input type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="sr-only" (change)="onStatementSelected($event)" />
         </label>
       </div>
 
-      @if (statementText(); as text) {
-        <app-statement-import [text]="text" (imported)="onStatementImported($event)" (closed)="statementText.set(null)" />
+      @if (statementRows(); as rows) {
+        <app-statement-import [rows]="rows" (imported)="onStatementImported($event)" (closed)="statementRows.set(null)" />
       }
 
       @if (pendingImport(); as pending) {
@@ -98,7 +90,7 @@ export class DataTransferPanelComponent {
 
   protected readonly buttonClass = BUTTON;
   protected readonly pendingImport = signal<BackupData | null>(null);
-  protected readonly statementText = signal<string | null>(null);
+  protected readonly statementRows = signal<string[][] | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly isError = signal(false);
 
@@ -126,11 +118,19 @@ export class DataTransferPanelComponent {
     if (!file) return;
     this.message.set(null);
     this.pendingImport.set(null);
-    this.statementText.set(decodeText(await file.arrayBuffer()));
+    this.statementRows.set(null);
+    try {
+      this.statementRows.set(await readStatementFile(file));
+    } catch (error) {
+      this.showMessage(
+        error instanceof StatementFileError ? error.message : 'No pudimos leer la cartola. Prueba exportándola como CSV o Excel.',
+        true
+      );
+    }
   }
 
   onStatementImported(count: number): void {
-    this.statementText.set(null);
+    this.statementRows.set(null);
     this.showMessage(`Se importaron ${count} ${count === 1 ? 'movimiento' : 'movimientos'} de la cartola.`, false);
   }
 

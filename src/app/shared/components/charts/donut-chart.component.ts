@@ -24,7 +24,7 @@ import { chartThemeColors } from './chart-theme';
   `,
 })
 export class DonutChartComponent {
-  private readonly transactionService = inject(TransactionService);
+  protected readonly transactionService = inject(TransactionService);
   private readonly themeService = inject(ThemeService);
   private readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   private chart: Chart | null = null;

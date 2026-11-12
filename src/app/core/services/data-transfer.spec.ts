@@ -51,6 +51,19 @@ describe('parseBackup', () => {
     expect(() => parseBackup(backupText({ accounts: [{ ...accounts[1], currency: 'EUR' }] }), 8)).toThrow();
   });
 
+  it('should keep a card\'s billing periods and drop a damaged cycle without losing the account', () => {
+    const accounts = [
+      { id: 'main', name: 'Cuenta principal', initialBalance: 0, currency: 'CLP' },
+      { id: 'card', name: 'Tarjeta', initialBalance: 0, currency: 'CLP', billing: { closingDay: 19, closings: ['2026-09-17'] } },
+      { id: 'other', name: 'Otra tarjeta', initialBalance: 0, currency: 'CLP', billing: { closingDay: 'diecinueve' } },
+    ];
+    const parsed = parseBackup(backupText({ accounts }), 8);
+
+    expect(parsed.accounts![1].billing).toEqual({ closingDay: 19, closings: ['2026-09-17'] });
+    expect(parsed.accounts![2]).toEqual({ id: 'other', name: 'Otra tarjeta', initialBalance: 0, currency: 'CLP' });
+    expect(parsed.accounts![0]).not.toHaveProperty('billing');
+  });
+
   it('should read a backup made before budgets existed into the main account', () => {
     const v1 = {
       app: BACKUP_APP_ID,

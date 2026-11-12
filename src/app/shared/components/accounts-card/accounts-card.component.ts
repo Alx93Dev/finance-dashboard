@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRend
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { CURRENCIES, Currency, isCurrency } from '../../../core/models/currency.model';
 import { AccountService } from '../../../core/services/account.service';
+import { isClosingDay } from '../../../core/services/billing-period';
 import { ExchangeRateService } from '../../../core/services/exchange-rate.service';
 import { MoneyPipe } from '../../pipes/money.pipe';
 
@@ -17,7 +18,17 @@ interface Draft {
   name: string;
   initialBalance: number;
   currency: Currency;
+  /** Day a credit card's statement usually closes; null for other accounts. */
+  closingDay: number | null;
   removed: boolean;
+}
+
+/** A closing day typed in a form: null when left empty, undefined when it isn't a day of the month. */
+function readClosingDay(value: FormDataEntryValue | null): number | null | undefined {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  const day = Number(text);
+  return isClosingDay(day) ? day : undefined;
 }
 
 @Component({
@@ -90,6 +101,20 @@ interface Draft {
                     <span class="w-7 shrink-0"></span>
                   }
                 </div>
+                <div class="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <label [for]="'account-closing-' + row.key">Si es tarjeta de crédito, cierra el día</label>
+                  <input
+                    [id]="'account-closing-' + row.key"
+                    type="number"
+                    min="1"
+                    max="31"
+                    inputmode="numeric"
+                    placeholder="—"
+                    [name]="'closing-' + row.key"
+                    [value]="row.closingDay ?? ''"
+                    [class]="inputClass + ' w-16 text-right tabular-nums'"
+                  />
+                </div>
               </div>
             } @else if (accounts.usage(row.id) > 0) {
               @let count = accounts.usage(row.id);
@@ -138,7 +163,11 @@ interface Draft {
               </select>
             </div>
           </div>
-          <p class="text-xs text-gray-400 dark:text-gray-500">El saldo inicial es lo que tenía la cuenta antes de tu primer movimiento.</p>
+          <div>
+            <label for="new-account-closing" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Día de cierre de facturación (solo tarjetas de crédito)</label>
+            <input id="new-account-closing" name="closing" type="number" min="1" max="31" inputmode="numeric" placeholder="Ej: 19" [class]="inputClass + ' w-24 text-right tabular-nums'" />
+          </div>
+          <p class="text-xs text-gray-400 dark:text-gray-500">El saldo inicial es lo que tenía la cuenta antes de tu primer movimiento. Con el día de cierre puedes ver los gastos de la tarjeta por período de facturación; si algún mes cierra otro día, lo ajustas en Transacciones.</p>
           <div class="flex justify-end gap-2 pt-1">
             <button type="button" [class]="buttonClass" (click)="adding.set(false)">Cancelar</button>
             <button type="submit" class="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Crear cuenta</button>
@@ -383,7 +412,8 @@ export class AccountsCardComponent {
   protected startEditing(): void {
     this.draftDefault.set(this.accounts.defaultId());
     this.drafts.set(this.accounts.accounts().map(a => ({
-      key: this.nextKey++, id: a.id, name: a.name, initialBalance: a.initialBalance, currency: a.currency, removed: false,
+      key: this.nextKey++, id: a.id, name: a.name, initialBalance: a.initialBalance, currency: a.currency,
+      closingDay: a.billing?.closingDay ?? null, removed: false,
     })));
   }
 
@@ -400,10 +430,12 @@ export class AccountsCardComponent {
     const name = String(data.get('name') ?? '').trim();
     if (!name) return;
     const currency = data.get('currency');
+    const closingDay = readClosingDay(data.get('closing'));
     this.accounts.add({
       name,
       initialBalance: Number(data.get('balance')) || 0,
       currency: isCurrency(currency) ? currency : 'CLP',
+      ...(closingDay ? { billing: { closingDay } } : {}),
     });
     this.adding.set(false);
     if (this.accounts.hasForeignCurrency()) void this.rates.refresh();
@@ -423,6 +455,7 @@ export class AccountsCardComponent {
       name: String(data.get(`name-${row.key}`) ?? '').trim(),
       initialBalance: Number(data.get(`balance-${row.key}`)) || 0,
       currency: isCurrency(data.get(`currency-${row.key}`)) ? data.get(`currency-${row.key}`) as Currency : row.currency,
+      closingDay: readClosingDay(data.get(`closing-${row.key}`)),
     }));
     if (values.some(v => !v.name)) return;
 
@@ -431,8 +464,10 @@ export class AccountsCardComponent {
     for (const row of rows) {
       if (row.removed) this.accounts.remove(row.id);
     }
-    for (const { row, name, initialBalance, currency } of values) {
+    for (const { row, name, initialBalance, currency, closingDay } of values) {
       this.accounts.update(row.id, { name, initialBalance, currency });
+      // A day that isn't in the month leaves the billing periods as they were.
+      if (closingDay !== undefined && closingDay !== row.closingDay) this.accounts.setClosingDay(row.id, closingDay);
     }
     this.drafts.set(null);
     if (this.accounts.hasForeignCurrency()) void this.rates.refresh();

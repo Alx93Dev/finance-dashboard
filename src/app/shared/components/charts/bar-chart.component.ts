@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   ElementRef,
   inject,
@@ -29,7 +30,7 @@ export function monthLabel(yearMonth: string): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6">
-      <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Flujo mensual</h2>
+      <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{{ byPeriod() ? 'Flujo por período de facturación' : 'Flujo mensual' }}</h2>
       <div class="relative h-52">
         <canvas #chartCanvas role="img" aria-label="Gráfico de flujo mensual de ingresos y gastos"></canvas>
       </div>
@@ -41,13 +42,16 @@ export class BarChartComponent {
   private readonly themeService = inject(ThemeService);
   private readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   private chart: Chart | null = null;
+  /** Whether bars are billing periods of a card instead of calendar months. */
+  protected readonly byPeriod = computed(() => this.transactionService.dashboardBilling() !== null);
 
   constructor() {
     effect(() => {
       const monthlyTotals: Record<string, { income: number; expense: number }> = {};
+      const monthOf = this.transactionService.dashboardMonthOf();
 
       for (const transaction of this.transactionService.dashboardTransactions()) {
-        const yearMonth = transaction.date.slice(0, 7);
+        const yearMonth = monthOf(transaction.date);
         if (!monthlyTotals[yearMonth]) {
           monthlyTotals[yearMonth] = { income: 0, expense: 0 };
         }

@@ -50,4 +50,16 @@ test('shows a credit card by billing period and adjusts a closing day', async ({
   await page.getByLabel('Filtrar por cuenta').selectOption({ label: 'Tarjeta BCI' });
   await page.getByLabel('Período de facturación').selectOption('2026-09');
   await expect(page.getByLabel('Hasta')).toHaveValue('2026-09-17');
+
+  // The dashboard goes by billing period for the card too.
+  await page.getByRole('link', { name: 'Go to Dashboard' }).click();
+  await page.getByLabel('Cuenta', { exact: true }).selectOption({ label: 'Tarjeta BCI' });
+  const month = page.getByRole('group', { name: 'Seleccionar mes' });
+  const summary = page.getByRole('region', { name: 'Resumen financiero' });
+  await expect(month).toContainText('septiembre 2026');
+  await expect(month).toContainText('Facturación 20 ago – 17 sept');
+  await expect(summary).toContainText('$9.752');
+  await page.getByRole('button', { name: 'Período siguiente' }).click();
+  await expect(month).toContainText('Facturación 18 sept – 19 oct');
+  await expect(summary).toContainText('$49.980');
 });

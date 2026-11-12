@@ -16,7 +16,7 @@ import { chartThemeColors } from './chart-theme';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6">
-      <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Gastos por categoría del mes</h2>
+      <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Gastos por categoría del {{ transactionService.dashboardPeriod() ? 'período' : 'mes' }}</h2>
       <div class="relative h-52">
         <canvas #chartCanvas role="img" aria-label="Gráfico de gastos por categoría"></canvas>
       </div>

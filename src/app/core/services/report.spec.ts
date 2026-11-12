@@ -1,4 +1,4 @@
-import { reportYears, yearReport } from './report';
+import { compareYears, reportYears, yearReport } from './report';
 import { DEFAULT_CATEGORIES } from '../models/category.model';
 import { Transaction } from '../models/transaction.model';
 
@@ -48,5 +48,41 @@ describe('yearReport', () => {
   it('should keep expenses whose category was deleted', () => {
     const orphan = yearReport([t('x', '2025-05-01', 1000, 'expense', 'gone')], DEFAULT_CATEGORIES, 2025);
     expect(orphan.expensesByCategory[0].category.name).toBe('Sin categoría');
+  });
+});
+
+describe('compareYears', () => {
+  const data: Transaction[] = [
+    t('sueldo-24', '2024-06-30', 1000000, 'income', '1'),
+    t('super-24', '2024-06-10', 200000, 'expense', '3'),
+    t('arriendo-24', '2024-06-01', 400000, 'expense', '7'),
+    t('sueldo-25', '2025-06-30', 1200000, 'income', '1'),
+    t('super-25', '2025-06-10', 300000, 'expense', '3'),
+    t('arriendo-25', '2025-06-01', 400000, 'expense', '7'),
+    t('viaje-25', '2025-07-01', 100000, 'expense', '8'),
+  ];
+  const comparison = compareYears(
+    yearReport(data, DEFAULT_CATEGORIES, 2025),
+    yearReport(data, DEFAULT_CATEGORIES, 2024),
+  );
+
+  it('should compare the totals with the year before', () => {
+    expect(comparison.previousYear).toBe(2024);
+    expect(comparison.income).toBe(20);
+    expect(comparison.expenses).toBe(33);
+    expect(comparison.balance).toBe(0);
+    // 33% saved in 2025 vs 40% in 2024
+    expect(comparison.savingsRatePoints).toBe(-7);
+  });
+
+  it('should compare each category and mark the new ones', () => {
+    expect(comparison.categories).toEqual({ '3': 50, '7': 0, '8': null });
+  });
+
+  it('should not compare the savings rate when a year has no income', () => {
+    const noIncome = [t('super', '2024-01-01', 1000, 'expense', '3'), ...data.filter(x => x.date.startsWith('2025'))];
+    const result = compareYears(yearReport(noIncome, DEFAULT_CATEGORIES, 2025), yearReport(noIncome, DEFAULT_CATEGORIES, 2024));
+    expect(result.savingsRatePoints).toBeNull();
+    expect(result.income).toBeNull();
   });
 });

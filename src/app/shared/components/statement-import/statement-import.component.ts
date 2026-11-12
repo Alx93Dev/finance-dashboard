@@ -12,7 +12,10 @@ import {
   findHeaderRow,
   hasOnlyPositiveAmounts,
   isSameMovement,
-  isSameTransfer,
+  newTransfers,
+  learnCategories,
+  learnedCategory,
+  possibleDuplicates,
   looksLikeCreditCard,
   OwnTransferKind,
   ownTransferKind,
@@ -192,6 +195,29 @@ const TRANSFER_KINDS: { kind: OwnTransferKind; one: string; many: string }[] = [
             }
           </div>
         }
+        @if (learnedCount() > 0) {
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ learnedCount() }} {{ learnedCount() === 1 ? 'movimiento toma la categoría' : 'movimientos toman la categoría' }} que usaste antes para ese comercio.
+          </p>
+        }
+        @if (maybeDuplicates().length > 0) {
+          <div class="mt-2 p-2 rounded-lg bg-amber-50 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            <p>
+              {{ maybeDuplicates().length }} {{ maybeDuplicates().length === 1 ? 'movimiento podría estar repetido' : 'movimientos podrían estar repetidos' }}:
+              mismo monto y fecha cercana a uno ya registrado con otra descripción, como pasa al importar el mismo período en otro formato.
+            </p>
+            <ul class="mt-1 text-xs">
+              @for (row of maybeDuplicates().slice(0, 3); track $index) {
+                <li class="truncate">{{ row.date | date:'dd/MM/yy' }} {{ row.description }} · {{ row.amount | money:(accounts.getById(accountId())?.currency ?? 'CLP') }}</li>
+              }
+              @if (maybeDuplicates().length > 3) { <li>y {{ maybeDuplicates().length - 3 }} más</li> }
+            </ul>
+            <label class="mt-1 flex items-center gap-2">
+              <input id="statement-skip-similar" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900" [checked]="skipSimilar()" (change)="skipSimilar.set($any($event.target).checked)" />
+              No importarlos
+            </label>
+          </div>
+        }
         @if (missingCategories().length > 0) {
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Se crearán estas categorías: {{ missingCategoryNames() }}.</p>
         }
@@ -202,7 +228,7 @@ const TRANSFER_KINDS: { kind: OwnTransferKind; one: string; many: string }[] = [
               <li class="flex items-baseline justify-between gap-3 py-1.5">
                 <span class="min-w-0 truncate text-gray-700 dark:text-gray-300">
                   <span class="text-gray-400 dark:text-gray-500 tabular-nums">{{ row.date | date:'dd/MM/yy' }}</span> {{ row.description }}
-                  @if (row.category) { <span class="text-xs text-gray-400 dark:text-gray-500">· {{ row.category }}</span> }
+                  @if (row.category || learnedName(row); as category) { <span class="text-xs text-gray-400 dark:text-gray-500">· {{ category }}</span> }
                 </span>
                 <span class="shrink-0 whitespace-nowrap tabular-nums font-medium" [class]="row.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'">
                   {{ row.type === 'income' ? '+' : '-' }}{{ row.amount | money:(accounts.getById(accountId())?.currency ?? 'CLP') }}
@@ -287,9 +313,31 @@ export class StatementImportComponent {
     const inRange = from ? rows.filter(row => row.date >= from) : rows;
     const existing = this.existing();
     const fresh = inRange.filter(row => !existing.some(t => isSameMovement(t, row)));
-    return { fresh, beforeFrom: rows.length - inRange.length, duplicates: inRange.length - fresh.length };
+    // Movements an exact duplicate already accounts for can't also be the twin of another row.
+    const unmatched = existing.filter(t => !inRange.some(row => isSameMovement(t, row)));
+    const similar = possibleDuplicates(fresh, unmatched);
+    return { fresh, similar, beforeFrom: rows.length - inRange.length, duplicates: inRange.length - fresh.length };
   });
-  protected readonly newRows = computed(() => this.split().fresh);
+  /** Rows that look like a movement already recorded in another format (same amount, nearby date). */
+  protected readonly maybeDuplicates = computed(() => this.split().fresh.filter(row => this.split().similar.has(row)));
+  protected readonly skipSimilar = signal(false);
+  protected readonly newRows = computed(() =>
+    this.skipSimilar() ? this.split().fresh.filter(row => !this.split().similar.has(row)) : this.split().fresh
+  );
+
+  /** Category the person gave each merchant before, to reuse for rows without one. */
+  private readonly learned = computed(() => learnCategories(this.tx.transactions()));
+  private learnedId(row: StatementRow): string | undefined {
+    const id = learnedCategory(this.learned(), row);
+    // Learning the catch-all category picked for the rest adds nothing.
+    const fallback = row.type === 'income' ? this.incomeCategory() : this.expenseCategory();
+    return id && id !== fallback && this.tx.categories().some(c => c.id === id && c.type === row.type) ? id : undefined;
+  }
+  protected learnedName(row: StatementRow): string | undefined {
+    const id = this.learnedId(row);
+    return id ? this.tx.getCategoryById(id)?.name : undefined;
+  }
+  protected readonly learnedCount = computed(() => this.newRows().filter(row => !row.category && this.learnedId(row)).length);
   protected readonly duplicates = computed(() => this.split().duplicates);
   protected readonly beforeFrom = computed(() => this.split().beforeFrom);
 
@@ -309,17 +357,15 @@ export class StatementImportComponent {
       const chosen = this.transferAccountIds()[kind.kind];
       const target = this.transferTargets().some(a => a.id === chosen) ? chosen : '';
       const rows = this.newRows().filter(row => ownTransferKind(row.description) === kind.kind);
-      const transfers = !target ? [] : rows
-        .map(row => ({
-          fromAccountId: row.type === 'expense' ? own : target,
-          toAccountId: row.type === 'expense' ? target : own,
-          amount: row.amount,
-          date: row.date,
-          description: row.description,
-        }))
-        // Already recorded from the other account's statement.
-        .filter(transfer => !existing.some(t => isSameTransfer(t, transfer)));
-      return { ...kind, target, rows, transfers };
+      const transfers = !target ? [] : rows.map(row => ({
+        fromAccountId: row.type === 'expense' ? own : target,
+        toAccountId: row.type === 'expense' ? target : own,
+        amount: row.amount,
+        date: row.date,
+        description: row.description,
+      }));
+      // Leave out the ones already recorded from the other account's statement.
+      return { ...kind, target, rows, transfers: newTransfers(transfers, existing) };
     }).filter(group => group.rows.length > 0);
   });
 
@@ -408,15 +454,15 @@ export class StatementImportComponent {
       if (kind && asTransfers.has(kind)) continue;
       this.tx.add({
         ...row,
-        categoryId: this.categoryFor(row.type, category, ids),
+        categoryId: this.categoryFor({ ...row, category }, ids),
         accountId: this.accountId(),
       });
     }
     this.imported.emit(rows.length);
   }
 
-  private categoryFor(type: CategoryType, name: StatementRow['category'], ids: Map<string, string>): string {
-    const fallback = type === 'income' ? this.incomeCategory() : this.expenseCategory();
-    return (name && ids.get(categoryKey(type, name))) || fallback;
+  private categoryFor(row: StatementRow, ids: Map<string, string>): string {
+    const fallback = row.type === 'income' ? this.incomeCategory() : this.expenseCategory();
+    return (row.category && ids.get(categoryKey(row.type, row.category))) || this.learnedId(row) || fallback;
   }
 }

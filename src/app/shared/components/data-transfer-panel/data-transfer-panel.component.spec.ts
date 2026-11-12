@@ -3,6 +3,7 @@ import { DataTransferPanelComponent } from './data-transfer-panel.component';
 import { GoalService } from '../../../core/services/goal.service';
 import { BudgetService } from '../../../core/services/budget.service';
 import { TransactionService } from '../../../core/services/transaction.service';
+import { AccountService } from '../../../core/services/account.service';
 import { toBackup } from '../../../core/services/data-transfer';
 import { DEFAULT_ACCOUNTS } from '../../../core/models/account.model';
 import { DEFAULT_CATEGORIES } from '../../../core/models/category.model';
@@ -77,5 +78,31 @@ describe('DataTransferPanelComponent', () => {
     await fixture.whenStable();
 
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('El archivo no es un respaldo de Finance Dashboard.');
+  });
+
+  it('should turn saved card payments into transfers', async () => {
+    localStorage.setItem('schema_version', '8');
+    localStorage.setItem('accounts', JSON.stringify([
+      { id: 'main', name: 'Cuenta corriente', initialBalance: 0, currency: 'CLP' },
+      { id: 'card', name: 'Tarjeta de crédito', initialBalance: 0, currency: 'CLP' },
+    ]));
+    localStorage.setItem('transactions', JSON.stringify([
+      ...STORED,
+      { id: 'p', description: 'PAGO TARJETA DE CREDITO', amount: 10000, categoryId: '8', date: '2025-01-05', type: 'expense', accountId: 'main' },
+      { id: 'm', description: 'MONTO CANCELADO', amount: 10000, categoryId: '2', date: '2025-01-06', type: 'income', accountId: 'card' },
+    ]));
+    const fixture = TestBed.createComponent(DataTransferPanelComponent);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Tienes 2 pagos de tarjeta guardados');
+    expect(root.querySelector<HTMLSelectElement>('#card-account')!.value).toBe('card');
+
+    button(root, 'Convertir 2').click();
+    await fixture.whenStable();
+
+    expect(TestBed.inject(TransactionService).transactions()).toEqual(STORED);
+    expect(TestBed.inject(AccountService).transfers()).toMatchObject([{ fromAccountId: 'main', toAccountId: 'card', amount: 10000 }]);
+    expect(root.textContent).toContain('Se convirtieron 2 pagos de tarjeta en 1 transferencia.');
+    expect(root.textContent).not.toContain('Tienes 2 pagos');
   });
 });

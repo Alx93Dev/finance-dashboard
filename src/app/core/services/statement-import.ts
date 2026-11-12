@@ -196,7 +196,11 @@ export function readStatement(rows: string[][], mapping: ColumnMapping, options:
       signed = amount === null ? null : Math.abs(amount) * balanceSigns[index];
     } else if (mapping.amount !== NO_COLUMN) {
       signed = parseStatementAmount(cell(row, mapping.amount));
-      if (signed !== null && options.positiveIsExpense) signed = -signed;
+      if (signed !== null && options.positiveIsExpense) {
+        // Some card statements (BCI's PDF) also print payments as positive amounts.
+        const payment = signed > 0 && CARD_PAYMENT_WORDS.test(normalize(cell(row, mapping.description)).trim());
+        signed = payment ? signed : -signed;
+      }
     } else {
       const credit = parseStatementAmount(cell(row, mapping.credit));
       const debit = parseStatementAmount(cell(row, mapping.debit));
@@ -219,6 +223,9 @@ export function readStatement(rows: string[][], mapping: ColumnMapping, options:
   });
   return { rows: result, skipped };
 }
+
+/** Card statement lines that are a payment or a refund, not a purchase. */
+const CARD_PAYMENT_WORDS = /^(monto cancelado|pago recibido|abono|reverso|devolucion)/;
 
 /** Words that mark money coming in, for rows whose sign the balance can't tell. */
 const INCOME_WORDS = /^(abono|deposito|transfer(encia)? (de|recibida)|traspaso desde)/;

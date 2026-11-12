@@ -111,6 +111,12 @@ describe('readStatement', () => {
     ]);
   });
 
+  it('should read payments printed as positive amounts in a card statement as income', () => {
+    const rows = [['17/09/2026', 'MONTO CANCELADO', '$ 40.000'], ['16/09/2026', 'LIBRERIA', '$ 12.990']];
+    const mapping = { date: 0, description: 1, amount: 2, debit: NO_COLUMN, credit: NO_COLUMN };
+    expect(readStatement(rows, mapping, { positiveIsExpense: true }).rows.map(r => r.type)).toEqual(['income', 'expense']);
+  });
+
   it('should take the sign of an unsigned amount from the balance, newest first or last', () => {
     const newestFirst = [
       ['20/10/2026', 'Compra', '1.390', '8.841'],

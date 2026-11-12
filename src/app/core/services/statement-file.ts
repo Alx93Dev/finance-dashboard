@@ -1,15 +1,17 @@
 import { parseCsv } from './statement-import';
+import { pdfTableRows, readPdfText } from './statement-pdf';
 
 /**
  * Reads a bank statement file into rows of cell text, whatever its format:
- * CSV, Excel (.xlsx or the older .xls) or an HTML table saved as .xls, which
- * some banks hand out. Excel is read here without a library: only the cell
+ * CSV, Excel (.xlsx or the older .xls), an HTML table saved as .xls, which
+ * some banks hand out, or a PDF statement that has text (not a scan). Excel is read here without a library: only the cell
  * values of the first sheet are needed.
  */
 export async function readStatementFile(file: Blob): Promise<string[][]> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04])) return readXlsx(bytes);
   if (startsWith(bytes, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) return readXls(bytes);
+  if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46])) return readPdf(bytes);
   const text = decodeText(bytes);
   if (/^\s*<(!doctype|html|table|\?xml)/i.test(text.replace(/^﻿/, ''))) return readHtmlTable(text);
   return parseCsv(text);
@@ -434,6 +436,24 @@ export function readXls(bytes: Uint8Array): string[][] {
     }
   }
   return grid.toRows();
+}
+
+// ----------------------------------------------------------------------- pdf
+
+async function readPdf(bytes: Uint8Array): Promise<string[][]> {
+  let pages;
+  try {
+    pages = await readPdfText(bytes);
+  } catch (error) {
+    if ((error as Error)?.name === 'PasswordException') {
+      throw new StatementFileError('El PDF está protegido con contraseña. Descárgalo sin contraseña e intenta de nuevo.');
+    }
+    throw new StatementFileError('No pudimos abrir el PDF.');
+  }
+  if (pages.every(page => page.length === 0)) {
+    throw new StatementFileError('El PDF no tiene texto (parece una imagen escaneada). Prueba con la cartola en Excel o CSV.');
+  }
+  return pdfTableRows(pages);
 }
 
 // ---------------------------------------------------------------------- html

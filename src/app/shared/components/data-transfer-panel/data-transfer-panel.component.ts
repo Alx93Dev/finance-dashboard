@@ -35,10 +35,10 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
         @if (sync.signedIn()) {
           Tus datos se guardan en este navegador y en tu cuenta. También puedes descargar un respaldo
-          o importar la cartola de tu banco en CSV o Excel.
+          o importar la cartola de tu banco en CSV, Excel o PDF.
         } @else {
           Tus transacciones solo se guardan en este navegador. Descarga un respaldo para no perderlas,
-          o importa la cartola de tu banco en CSV o Excel.
+          o importa la cartola de tu banco en CSV, Excel o PDF.
         }
       </p>
 
@@ -51,7 +51,7 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
         </label>
         <label [class]="buttonClass + ' cursor-pointer'">
           Importar cartola
-          <input type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="sr-only" (change)="onStatementSelected($event)" />
+          <input type="file" accept=".csv,.xls,.xlsx,.pdf,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="sr-only" (change)="onStatementSelected($event)" />
         </label>
       </div>
 
@@ -123,7 +123,7 @@ export class DataTransferPanelComponent {
       this.statementRows.set(await readStatementFile(file));
     } catch (error) {
       this.showMessage(
-        error instanceof StatementFileError ? error.message : 'No pudimos leer la cartola. Prueba exportándola como CSV o Excel.',
+        error instanceof StatementFileError ? error.message : 'No pudimos leer la cartola. Prueba con el archivo en CSV, Excel o PDF.',
         true
       );
     }

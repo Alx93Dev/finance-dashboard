@@ -49,7 +49,7 @@ describe('StatementImportComponent', () => {
     category.value = '3';
     category.dispatchEvent(new Event('change'));
     await fixture.whenStable();
-    Array.from(root.querySelectorAll('button')).find(b => b.textContent!.includes('Importar'))!.click();
+    Array.from(root.querySelectorAll('button')).find(b => /^Importar \d+$/.test(b.textContent!.trim()))!.click();
 
     const tx = TestBed.inject(TransactionService).transactions();
     expect(imported).toEqual([2]);
@@ -83,7 +83,7 @@ describe('StatementImportComponent', () => {
     expect(root.textContent).toContain('Gastos sin categoría');
     expect(root.textContent).toContain('Se crearán estas categorías: Transferencia (gasto), Transferencia (ingreso).');
 
-    Array.from(root.querySelectorAll('button')).find(b => b.textContent!.includes('Importar'))!.click();
+    Array.from(root.querySelectorAll('button')).find(b => /^Importar \d+$/.test(b.textContent!.trim()))!.click();
     await fixture.whenStable();
 
     const service = TestBed.inject(TransactionService);
@@ -125,6 +125,24 @@ describe('StatementImportComponent', () => {
     const text = root.textContent!.replace(/\s+/g, ' ');
     expect(text).toContain('COMPRA CAFE -$');
     expect(text).toContain('TRANSFER DE JUAN +$');
+  });
+
+  it('should leave out movements before the chosen date', async () => {
+    const { fixture, root } = await render();
+    expect(root.textContent).toContain('Tu último movimiento en esta cuenta es del 07/01/25.');
+
+    Array.from(root.querySelectorAll('button')).find(b => b.textContent!.includes('Importar solo lo posterior'))!.click();
+    await fixture.whenStable();
+    expect(root.querySelector<HTMLInputElement>('#statement-from')!.value).toBe('2025-01-08');
+    const status = root.querySelector('[role="status"]')!.textContent!.replace(/\s+/g, ' ');
+    expect(status).toContain('0 movimientos nuevos');
+    expect(status).toContain('3 son anteriores a la fecha elegida');
+
+    const from = root.querySelector<HTMLInputElement>('#statement-from')!;
+    from.value = '2025-01-06';
+    from.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    expect(root.querySelector('[role="status"]')!.textContent!.replace(/\s+/g, ' ')).toContain('1 movimiento nuevo · 1 es anterior');
   });
 
   it('should explain an empty file', async () => {

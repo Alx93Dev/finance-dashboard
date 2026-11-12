@@ -146,10 +146,23 @@ type AmountMode = 'signed' | 'split' | 'balance';
               }
             </select>
           </div>
+          <div>
+            <label for="statement-from" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Importar desde</label>
+            <input id="statement-from" type="date" [class]="selectClass" [value]="fromDate()" (change)="fromDate.set($any($event.target).value)" />
+            @if (lastDate(); as last) {
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Tu último movimiento en esta cuenta es del {{ last | date:'dd/MM/yy' }}.
+                @if (fromDate() !== dayAfter(last)) {
+                  <button type="button" class="underline hover:text-gray-700 dark:hover:text-gray-200" (click)="fromDate.set(dayAfter(last))">Importar solo lo posterior</button>
+                }
+              </p>
+            }
+          </div>
         </div>
 
         <p class="mt-3 text-sm text-gray-700 dark:text-gray-300" role="status">
           {{ newRows().length }} {{ newRows().length === 1 ? 'movimiento nuevo' : 'movimientos nuevos' }}
+          @if (beforeFrom() > 0) { · {{ beforeFrom() }} {{ beforeFrom() === 1 ? 'es anterior' : 'son anteriores' }} a la fecha elegida }
           @if (duplicates() > 0) { · {{ duplicates() }} {{ duplicates() === 1 ? 'ya estaba registrado' : 'ya estaban registrados' }} }
           @if (statement().skipped > 0) { · {{ statement().skipped }} {{ statement().skipped === 1 ? 'fila no se pudo leer' : 'filas no se pudieron leer' }} }
         </p>
@@ -233,14 +246,26 @@ export class StatementImportComponent {
     return readStatement(this.table().data, effective, { positiveIsExpense: mode === 'signed' && this.positiveIsExpense() });
   });
 
-  private readonly split = computed(() => {
+  /** Movements before this day (YYYY-MM-DD) are left out; empty imports everything. */
+  protected readonly fromDate = signal('');
+  private readonly existing = computed(() => {
     const accountId = this.accountId();
-    const existing = this.tx.transactions().filter(t => t.accountId === accountId);
-    const fresh = this.statement().rows.filter(row => !existing.some(t => isSameMovement(t, row)));
-    return { fresh, duplicates: this.statement().rows.length - fresh.length };
+    return this.tx.transactions().filter(t => t.accountId === accountId);
+  });
+  /** Latest movement already in the account, to help avoid importing overlapping periods twice. */
+  protected readonly lastDate = computed(() => this.existing().reduce<string | null>((max, t) => (!max || t.date > max ? t.date : max), null));
+
+  private readonly split = computed(() => {
+    const from = this.fromDate();
+    const rows = this.statement().rows;
+    const inRange = from ? rows.filter(row => row.date >= from) : rows;
+    const existing = this.existing();
+    const fresh = inRange.filter(row => !existing.some(t => isSameMovement(t, row)));
+    return { fresh, beforeFrom: rows.length - inRange.length, duplicates: inRange.length - fresh.length };
   });
   protected readonly newRows = computed(() => this.split().fresh);
   protected readonly duplicates = computed(() => this.split().duplicates);
+  protected readonly beforeFrom = computed(() => this.split().beforeFrom);
 
   /** Categories named in the file that don't exist yet for that type; importing creates them. */
   protected readonly missingCategories = computed(() => {
@@ -283,6 +308,12 @@ export class StatementImportComponent {
   protected setColumn(field: keyof ColumnMapping, event: Event): void {
     const index = Number((event.target as HTMLSelectElement).value);
     this.mapping.update(mapping => ({ ...mapping, [field]: index }));
+  }
+
+  protected dayAfter(date: string): string {
+    const [year, month, day] = date.split('-').map(Number);
+    const next = new Date(Date.UTC(year, month - 1, day + 1));
+    return next.toISOString().slice(0, 10);
   }
 
   protected setMode(mode: AmountMode): void {

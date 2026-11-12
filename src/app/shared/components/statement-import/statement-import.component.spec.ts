@@ -176,6 +176,33 @@ describe('StatementImportComponent', () => {
     expect(tx.map(t => t.description)).toEqual(['UBER', 'MERPAGO*PEPO', 'TRASPASO DE FONDOS ENTRE CUENTAS PROPIAS']);
   });
 
+  it('should reuse the category given before to the same merchant', async () => {
+    localStorage.setItem('transactions', JSON.stringify([
+      { id: 'r', description: 'Red Movilidad San 1234', amount: 1630, categoryId: '4', date: '2025-01-01', type: 'expense', accountId: 'main' },
+    ]));
+    const { fixture, root } = await render('Fecha;Descripción;Cargo;Abono\n05/01/2025;RED MOVILIDAD SAN 9999;1.630;\n06/01/2025;Kiosko;500;');
+    expect(root.textContent).toContain('1 movimiento toma la categoría que usaste antes');
+    expect(root.textContent).toContain('· Transporte');
+
+    Array.from(root.querySelectorAll('button')).find(b => /^Importar \d+$/.test(b.textContent!.trim()))!.click();
+    await fixture.whenStable();
+    const tx = TestBed.inject(TransactionService).transactions();
+    expect(tx.find(t => t.description === 'RED MOVILIDAD SAN 9999')!.categoryId).toBe('4');
+    expect(tx.find(t => t.description === 'Kiosko')!.categoryId).toBe('8');
+  });
+
+  it('should warn about movements that look like one saved in another format', async () => {
+    const { fixture, root } = await render('Fecha;Descripción;Cargo;Abono\n08/01/2025;Compra con Tarjeta de Débito en UBER;8.500;\n09/01/2025;Cine;5.000;');
+    expect(root.textContent).toContain('1 movimiento podría estar repetido');
+    expect(root.textContent).toContain('2 movimientos nuevos');
+
+    const skip = root.querySelector<HTMLInputElement>('#statement-skip-similar')!;
+    skip.checked = true;
+    skip.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    expect(root.textContent).toContain('1 movimiento nuevo');
+  });
+
   it('should explain an empty file', async () => {
     const { root } = await render('');
     expect(root.querySelector('[role="alert"]')!.textContent).toContain('no tiene filas');

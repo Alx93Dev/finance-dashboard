@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { StorageService } from '../../../core/services/storage.service';
 import { AccountService } from '../../../core/services/account.service';
@@ -6,6 +6,7 @@ import { BackupService } from '../../../core/services/backup.service';
 import { BackupData, parseBackup, toCsv } from '../../../core/services/data-transfer';
 import { StatementImportComponent } from '../statement-import/statement-import.component';
 import { StatementFileError, readStatementFile } from '../../../core/services/statement-file';
+import { normalize, planCardPaymentTransfers } from '../../../core/services/statement-import';
 import { SyncPanelComponent } from '../sync-panel/sync-panel.component';
 import { SyncService } from '../../../core/sync/sync.service';
 
@@ -59,6 +60,26 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
         <app-statement-import [rows]="rows" (imported)="onStatementImported($event)" (closed)="statementRows.set(null)" />
       }
 
+      @if (!statementRows() && cardPlan().remove.length > 0) {
+        <div class="mt-3 p-3 rounded-lg border border-gray-200 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">
+          <p>
+            Tienes {{ cardPlan().remove.length }} {{ cardPlan().remove.length === 1 ? 'pago de tarjeta guardado' : 'pagos de tarjeta guardados' }} como gasto o ingreso,
+            lo que los cuenta dos veces. Puedes convertirlos en transferencias.
+          </p>
+          <div class="mt-2 flex flex-wrap items-end gap-2">
+            <label class="text-xs text-gray-500 dark:text-gray-400">
+              Cuenta de la tarjeta
+              <select id="card-account" class="mt-1 block px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" (change)="cardAccountId.set($any($event.target).value)">
+                @for (account of accounts.accounts(); track account.id) {
+                  <option [value]="account.id" [selected]="account.id === cardAccount()">{{ account.name }}</option>
+                }
+              </select>
+            </label>
+            <button type="button" [class]="buttonClass" (click)="convertCardPayments()">Convertir {{ cardPlan().remove.length }}</button>
+          </div>
+        </div>
+      }
+
       @if (pendingImport(); as pending) {
         <div class="mt-3 p-3 rounded-lg bg-amber-50 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" role="alert">
           <p>
@@ -84,7 +105,7 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
 export class DataTransferPanelComponent {
   protected readonly tx = inject(TransactionService);
   protected readonly sync = inject(SyncService);
-  private readonly accounts = inject(AccountService);
+  protected readonly accounts = inject(AccountService);
   private readonly backups = inject(BackupService);
   private readonly storage = inject(StorageService);
 
@@ -93,6 +114,32 @@ export class DataTransferPanelComponent {
   protected readonly statementRows = signal<string[][] | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly isError = signal(false);
+
+  /** Account of the credit card, for turning saved card payments into transfers. */
+  protected readonly cardAccountId = signal('');
+  protected readonly cardAccount = computed(() => {
+    const accounts = this.accounts.accounts();
+    const chosen = this.cardAccountId();
+    if (accounts.some(a => a.id === chosen)) return chosen;
+    return accounts.find(a => /tarjeta|credito|visa|mastercard/.test(normalize(a.name)))?.id ?? '';
+  });
+  protected readonly cardPlan = computed(() => {
+    const card = this.cardAccount();
+    if (!card || !this.accounts.hasSeveral()) return { transfers: [], remove: [] };
+    const other = this.accounts.defaultId() !== card
+      ? this.accounts.defaultId()
+      : this.accounts.accounts().find(a => a.id !== card)?.id ?? '';
+    return planCardPaymentTransfers(
+      this.tx.transactions(), this.accounts.transfers(), card, other, id => this.accounts.getById(id)?.currency
+    );
+  });
+
+  convertCardPayments(): void {
+    const { transfers, remove } = this.cardPlan();
+    for (const transfer of transfers) this.accounts.transfer(transfer);
+    this.tx.removeMany(remove);
+    this.showMessage(`Se convirtieron ${remove.length} ${remove.length === 1 ? 'pago de tarjeta' : 'pagos de tarjeta'} en ${transfers.length} ${transfers.length === 1 ? 'transferencia' : 'transferencias'}.`, false);
+  }
 
   exportCsv(): void {
     download(`transacciones-${today()}.csv`, '﻿' + toCsv(this.tx.transactions(), this.tx.categories(), this.accounts.accounts()), 'text/csv;charset=utf-8');

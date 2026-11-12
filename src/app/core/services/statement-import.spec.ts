@@ -5,6 +5,12 @@ import {
   hasOnlyPositiveAmounts,
   isSameMovement,
   isSameTransfer,
+  learnCategories,
+  learnedCategory,
+  merchantKey,
+  newTransfers,
+  planCardPaymentTransfers,
+  possibleDuplicates,
   looksLikeCreditCard,
   ownTransferKind,
   parseCsv,
@@ -190,5 +196,90 @@ describe('isSameTransfer', () => {
     expect(isSameTransfer(paid, { ...paid, date: '2026-10-25' })).toBe(false);
     expect(isSameTransfer(paid, { ...paid, amount: 9000 })).toBe(false);
     expect(isSameTransfer(paid, { ...paid, fromAccountId: 'card', toAccountId: 'cc' })).toBe(false);
+  });
+});
+
+describe('merchantKey', () => {
+  it('should keep the merchant name without ids or purchase prefixes', () => {
+    expect(merchantKey('Red Movilidad San 820625')).toBe('red movilidad san');
+    expect(merchantKey('RED MOVILIDAD SAN 577360')).toBe('red movilidad san');
+    expect(merchantKey('MERPAGO*PEPO 63073')).toBe('merpago pepo');
+    expect(merchantKey('Compra con Tarjeta de Débito en SPOTIFY          LAS CONDES  CHL')).toBe('spotify las condes');
+    expect(merchantKey('123 456')).toBe('');
+  });
+});
+
+describe('learnCategories', () => {
+  it('should pick the category used most for each merchant, the latest on a tie', () => {
+    const learned = learnCategories([
+      { description: 'Red Movilidad San 1', type: 'expense', categoryId: 'transporte', date: '2026-01-01' },
+      { description: 'Red Movilidad San 2', type: 'expense', categoryId: 'transporte', date: '2026-01-02' },
+      { description: 'Red Movilidad San 3', type: 'expense', categoryId: 'otros', date: '2026-01-03' },
+      { description: 'SPOTIFY 1', type: 'expense', categoryId: 'otros', date: '2026-01-01' },
+      { description: 'SPOTIFY 2', type: 'expense', categoryId: 'ocio', date: '2026-02-01' },
+    ]);
+    expect(learnedCategory(learned, { description: 'Red Movilidad San 99', type: 'expense' })).toBe('transporte');
+    expect(learnedCategory(learned, { description: 'SPOTIFY 384347', type: 'expense' })).toBe('ocio');
+    expect(learnedCategory(learned, { description: 'SPOTIFY 384347', type: 'income' })).toBeUndefined();
+    expect(learnedCategory(learned, { description: 'UNIMARC', type: 'expense' })).toBeUndefined();
+  });
+});
+
+describe('possibleDuplicates', () => {
+  it('should pair rows with an existing movement of the same amount a day or two apart, once each', () => {
+    const rows = [
+      { date: '2026-10-21', amount: 1390, type: 'expense' as const },
+      { date: '2026-10-21', amount: 1390, type: 'expense' as const },
+      { date: '2026-10-21', amount: 5000, type: 'income' as const },
+    ];
+    const existing = [{ id: 'a', date: '2026-10-20', amount: 1390, type: 'expense' as const }];
+    const found = possibleDuplicates(rows, existing);
+    expect(found.size).toBe(1);
+    expect(found.has(rows[0])).toBe(true);
+    expect(possibleDuplicates(rows, [{ ...existing[0], date: '2026-10-15' }]).size).toBe(0);
+  });
+});
+
+describe('newTransfers', () => {
+  it('should let each recorded transfer account for one candidate', () => {
+    const t = { fromAccountId: 'cc', toAccountId: 'card', amount: 10000, date: '2026-10-19' };
+    expect(newTransfers([t, { ...t }], [t])).toHaveLength(1);
+  });
+});
+
+describe('planCardPaymentTransfers', () => {
+  const currency = () => 'CLP';
+  const tx = (id: string, accountId: string, description: string, type: 'income' | 'expense', date: string) =>
+    ({ id, accountId, description, type, date, amount: 10000, categoryId: 'x' });
+
+  it('should turn both sides of a card payment into one transfer and leave the rest', () => {
+    const plan = planCardPaymentTransfers([
+      tx('a', 'cc', 'PAGO TARJETA DE CREDITO MASTERCARD', 'expense', '2026-10-19'),
+      tx('b', 'card', 'MONTO CANCELADO', 'income', '2026-10-20'),
+      tx('c', 'cc', 'UNIMARC', 'expense', '2026-10-19'),
+    ], [], 'card', 'cc', currency);
+    expect(plan.remove).toEqual(['a', 'b']);
+    expect(plan.transfers).toEqual([
+      { fromAccountId: 'cc', toAccountId: 'card', amount: 10000, date: '2026-10-19', description: 'PAGO TARJETA DE CREDITO MASTERCARD' },
+    ]);
+  });
+
+  it('should not add a transfer that already exists', () => {
+    const plan = planCardPaymentTransfers(
+      [tx('a', 'cc', 'PAGO TARJETA DE CREDITO', 'expense', '2026-10-19')],
+      [{ fromAccountId: 'cc', toAccountId: 'card', amount: 10000, date: '2026-10-18' }],
+      'card', 'cc', currency
+    );
+    expect(plan).toEqual({ transfers: [], remove: ['a'] });
+  });
+
+  it('should keep two payments of the same amount in the same week', () => {
+    const plan = planCardPaymentTransfers([
+      tx('a', 'cc', 'PAGO TARJETA DE CREDITO', 'expense', '2026-10-19'),
+      tx('b', 'cc', 'PAGO TARJETA DE CREDITO', 'expense', '2026-10-19'),
+      tx('c', 'card', 'MONTO CANCELADO', 'income', '2026-10-20'),
+    ], [], 'card', 'cc', currency);
+    expect(plan.remove).toEqual(['a', 'b', 'c']);
+    expect(plan.transfers).toHaveLength(2);
   });
 });

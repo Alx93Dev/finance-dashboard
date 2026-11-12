@@ -283,3 +283,128 @@ export function isSameTransfer(a: Pick<Transfer, 'fromAccountId' | 'toAccountId'
   const gap = Math.abs(Date.parse(a.date) - Date.parse(b.date)) / 86_400_000;
   return a.fromAccountId === b.fromAccountId && a.toAccountId === b.toAccountId && a.amount === b.amount && gap <= days;
 }
+
+/** How banks prefix purchases; the merchant name comes after. */
+const PURCHASE_PREFIX = /^(compra con tarjeta de debito en|compra tarjeta debito|compra( qr)?|pago en|cargo por) /;
+
+/**
+ * Short name of the merchant or counterpart in a description, to recognize it
+ * in later statements: lowercase, without purchase prefixes, ids or amounts,
+ * first three words. "Red Movilidad San 820625" → "red movilidad san".
+ */
+export function merchantKey(description: string): string {
+  const words = normalize(description)
+    .replace(/[*]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(PURCHASE_PREFIX, '')
+    .split(' ')
+    .filter(word => word && !/\d/.test(word));
+  return words.slice(0, 3).join(' ');
+}
+
+/**
+ * The category the person gives each merchant, learned from their
+ * transactions: the most used one, or the latest on a tie. Keyed by type
+ * and merchant, since the same name can be income and expense.
+ */
+export function learnCategories(transactions: Pick<Transaction, 'description' | 'type' | 'categoryId' | 'date'>[]): Map<string, string> {
+  const counts = new Map<string, Map<string, { count: number; latest: string }>>();
+  for (const t of transactions) {
+    const merchant = merchantKey(t.description);
+    if (!merchant) continue;
+    const key = `${t.type}:${merchant}`;
+    const byCategory = counts.get(key) ?? new Map<string, { count: number; latest: string }>();
+    const seen = byCategory.get(t.categoryId) ?? { count: 0, latest: '' };
+    byCategory.set(t.categoryId, { count: seen.count + 1, latest: t.date > seen.latest ? t.date : seen.latest });
+    counts.set(key, byCategory);
+  }
+  const learned = new Map<string, string>();
+  for (const [key, byCategory] of counts) {
+    const [best] = [...byCategory.entries()].sort(([, a], [, b]) => b.count - a.count || b.latest.localeCompare(a.latest));
+    learned.set(key, best[0]);
+  }
+  return learned;
+}
+
+export function learnedCategory(learned: Map<string, string>, row: Pick<StatementRow, 'description' | 'type'>): string | undefined {
+  const merchant = merchantKey(row.description);
+  return merchant ? learned.get(`${row.type}:${merchant}`) : undefined;
+}
+
+/**
+ * Pairs each row with an existing movement of the same amount and type a few
+ * days apart but described differently: likely the same movement exported in
+ * another format. Each existing movement pairs with one row at most.
+ */
+export function possibleDuplicates<R extends Pick<StatementRow, 'date' | 'amount' | 'type'>>(
+  rows: R[],
+  existing: Pick<Transaction, 'id' | 'date' | 'amount' | 'type'>[],
+  days = 2
+): Set<R> {
+  const used = new Set<string>();
+  const found = new Set<R>();
+  for (const row of rows) {
+    const match = existing
+      .filter(t => !used.has(t.id) && t.amount === row.amount && t.type === row.type)
+      .map(t => ({ t, gap: Math.abs(Date.parse(t.date) - Date.parse(row.date)) / 86_400_000 }))
+      .filter(({ gap }) => gap <= days)
+      .sort((a, b) => a.gap - b.gap)[0];
+    if (match) {
+      used.add(match.t.id);
+      found.add(row);
+    }
+  }
+  return found;
+}
+
+/**
+ * Leaves out the candidates already recorded: each existing transfer can
+ * account for one candidate only, since paying 10.000 twice in a week is two payments.
+ */
+export function newTransfers<T extends Pick<Transfer, 'fromAccountId' | 'toAccountId' | 'amount' | 'date'>>(
+  candidates: T[],
+  existing: Pick<Transfer, 'fromAccountId' | 'toAccountId' | 'amount' | 'date'>[]
+): T[] {
+  const claimed = new Set<number>();
+  return candidates.filter(candidate => {
+    const index = existing.findIndex((t, i) => !claimed.has(i) && isSameTransfer(t, candidate));
+    if (index < 0) return true;
+    claimed.add(index);
+    return false;
+  });
+}
+
+/**
+ * Turns card payments already saved as expenses or income into transfers with
+ * the card account. A payment saved in the card account itself pairs with
+ * `otherAccountId`. Both sides of one payment (checking account and card)
+ * become a single transfer; ones in another currency are left alone.
+ */
+export function planCardPaymentTransfers(
+  transactions: Transaction[],
+  existingTransfers: Pick<Transfer, 'fromAccountId' | 'toAccountId' | 'amount' | 'date'>[],
+  cardAccountId: string,
+  otherAccountId: string,
+  currencyOf: (accountId: string) => string | undefined
+): { transfers: Omit<Transfer, 'id'>[]; remove: string[] } {
+  const remove: string[] = [];
+  const asTransfer = (t: Transaction) => {
+    const counterpart = t.accountId === cardAccountId ? otherAccountId : cardAccountId;
+    if (!counterpart || counterpart === t.accountId || currencyOf(counterpart) !== currencyOf(t.accountId)) return null;
+    remove.push(t.id);
+    return {
+      fromAccountId: t.type === 'expense' ? t.accountId : counterpart,
+      toAccountId: t.type === 'expense' ? counterpart : t.accountId,
+      amount: t.amount,
+      date: t.date,
+      description: t.description,
+    };
+  };
+  const payments = transactions.filter(t => ownTransferKind(t.description) === 'card');
+  const toTransfers = (list: Transaction[]) => list.map(asTransfer).filter((t): t is Omit<Transfer, 'id'> => t !== null);
+  // The paying account's side first; the card's side of the same payment then pairs with it.
+  const paying = newTransfers(toTransfers(payments.filter(t => t.accountId !== cardAccountId)), existingTransfers);
+  const card = newTransfers(toTransfers(payments.filter(t => t.accountId === cardAccountId)), [...existingTransfers, ...paying]);
+  return { transfers: [...paying, ...card], remove };
+}

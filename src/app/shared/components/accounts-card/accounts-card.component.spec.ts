@@ -165,6 +165,44 @@ describe('AccountsCardComponent', () => {
     expect(service.accounts().map(a => a.name)).toEqual(['Cuenta principal', 'Billetera']);
   });
 
+  it('should create a credit card with the day its statement closes', async () => {
+    const { fixture, root, service } = await render();
+
+    button(root, 'Agregar cuenta').click();
+    await fixture.whenStable();
+    root.querySelector<HTMLInputElement>('#new-account-name')!.value = 'Tarjeta BCI';
+    root.querySelector<HTMLInputElement>('#new-account-closing')!.value = '19';
+    button(root, 'Crear cuenta').click();
+    await fixture.whenStable();
+
+    expect(service.accounts()[1]).toMatchObject({ name: 'Tarjeta BCI', billing: { closingDay: 19 } });
+    expect(service.accounts()[0]).not.toHaveProperty('billing');
+  });
+
+  it('should change or remove the closing day of an account, keeping the dates given', async () => {
+    const { fixture, root, service } = await render();
+    const card = service.add({ name: 'Tarjeta', initialBalance: 0, currency: 'CLP', billing: { closingDay: 19, closings: ['2026-09-17'] } });
+    await fixture.whenStable();
+
+    button(root, 'Editar').click();
+    await fixture.whenStable();
+    const days = inputs(root, 'account-closing-');
+    expect(days.map(d => d.value)).toEqual(['', '19']);
+    days[0].value = '';
+    days[1].value = '20';
+    button(root, 'Guardar').click();
+    await fixture.whenStable();
+    expect(service.getById(card.id)!.billing).toEqual({ closingDay: 20, closings: ['2026-09-17'] });
+    expect(service.accounts()[0]).not.toHaveProperty('billing');
+
+    button(root, 'Editar').click();
+    await fixture.whenStable();
+    inputs(root, 'account-closing-')[1].value = '';
+    button(root, 'Guardar').click();
+    await fixture.whenStable();
+    expect(service.getById(card.id)).not.toHaveProperty('billing');
+  });
+
   it('should choose another account as the main one', async () => {
     const { fixture, root, service } = await render();
     const bci = service.add({ name: 'BCI', initialBalance: 0, currency: 'CLP' });

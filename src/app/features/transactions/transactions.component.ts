@@ -8,6 +8,7 @@ import { DataTransferPanelComponent } from '../../shared/components/data-transfe
 import { RecurringPanelComponent } from '../../shared/components/recurring-panel/recurring-panel.component';
 import { SampleDataBannerComponent } from '../../shared/components/sample-data-banner/sample-data-banner.component';
 import { Transaction } from '../../core/models/transaction.model';
+import { periodOf, periodsBetween } from '../../core/services/billing-period';
 
 const UNDO_TIMEOUT_MS = 5000;
 
@@ -25,6 +26,12 @@ interface FilterOption {
 function lastDayOf(month: string): string {
   const [year, monthNumber] = month.split('-').map(Number);
   return `${month}-${String(new Date(year, monthNumber, 0).getDate()).padStart(2, '0')}`;
+}
+
+/** Today in local time as 'YYYY-MM-DD'. */
+function today(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 /** Lowercases and strips accents so "medico" matches "Médico". */
@@ -121,6 +128,39 @@ function normalize(text: string): string {
             }
           </select>
         </div>
+        @if (billingPeriods().length > 0) {
+          <div>
+            <label for="period-filter" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Período de facturación</label>
+            <select
+              id="period-filter"
+              (change)="setPeriod($any($event.target).value)"
+              class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            >
+              <option value="" [selected]="!selectedPeriod()">Elegir período</option>
+              @for (period of billingPeriods(); track period.month) {
+                <option [value]="period.month" [selected]="period.month === selectedPeriod()?.month">
+                  {{ period.month + '-01' | date:'MMMM y' }} ({{ period.start | date:'d MMM' }} – {{ period.end | date:'d MMM' }})
+                </option>
+              }
+            </select>
+          </div>
+          @if (selectedPeriod(); as period) {
+            <div>
+              <label for="period-closing" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Cierre</label>
+              <input
+                id="period-closing"
+                type="date"
+                required
+                [value]="period.end"
+                [min]="period.month + '-01'"
+                [max]="lastDayOf(period.month)"
+                (change)="setPeriodClosing($any($event.target).value)"
+                class="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                title="Día en que cerró la facturación de este período, según tu estado de cuenta"
+              />
+            </div>
+          }
+        }
         <div>
           <label for="date-from" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Desde</label>
           <input
@@ -162,6 +202,16 @@ function normalize(text: string): string {
           </button>
         }
       </div>
+
+      @if (selectedPeriod(); as period) {
+        <p id="period-summary" class="-mt-3 mb-6 text-sm text-gray-600 dark:text-gray-300" role="status">
+          Gastos facturados del {{ period.start | date:'d MMM' }} al {{ period.end | date:'d MMM y' }}:
+          <span class="font-semibold tabular-nums text-gray-900 dark:text-gray-100">{{ periodTotals().expenses | money:(billingAccount()?.currency ?? 'CLP') }}</span>
+          @if (periodTotals().income > 0) {
+            · abonos <span class="tabular-nums">{{ periodTotals().income | money:(billingAccount()?.currency ?? 'CLP') }}</span>
+          }
+        </p>
+      }
 
       @if (confirmingBulk() && filteredTransactions().length > 0) {
         @let count = filteredTransactions().length;
@@ -386,6 +436,42 @@ export class TransactionsComponent {
     return from.slice(0, 7);
   });
 
+  /** Credit card whose billing periods can be picked: the account filtered by, or the only account. */
+  protected readonly billingAccount = computed(() => {
+    const accounts = this.accounts.accounts();
+    const account = this.accounts.getById(this.accountFilter()) ?? (accounts.length === 1 ? accounts[0] : undefined);
+    return account?.billing ? account : undefined;
+  });
+
+  /** Billing periods from the card's first movement to the current one, most recent first. */
+  protected readonly billingPeriods = computed(() => {
+    const account = this.billingAccount();
+    if (!account?.billing) return [];
+    const dates = this.transactionService.transactions().filter(t => t.accountId === account.id).map(t => t.date).sort();
+    const now = today();
+    const first = dates[0] ?? now;
+    const last = dates.length > 0 && dates[dates.length - 1] > now ? dates[dates.length - 1] : now;
+    return periodsBetween(account.billing, first, last);
+  });
+
+  /** The billing period the date range covers exactly, or null for any other range. */
+  protected readonly selectedPeriod = computed(() =>
+    this.billingPeriods().find(p => p.start === this.dateFrom() && p.end === this.dateTo()) ?? null
+  );
+
+  /** What the listed movements add up to, for the selected billing period. */
+  protected readonly periodTotals = computed(() => {
+    let expenses = 0;
+    let income = 0;
+    for (const t of this.filteredTransactions()) {
+      if (t.type === 'expense') expenses += t.amount;
+      else income += t.amount;
+    }
+    return { expenses, income };
+  });
+
+  protected readonly lastDayOf = lastDayOf;
+
   protected readonly pageCount = computed(() =>
     Math.max(1, Math.ceil(this.filteredTransactions().length / PAGE_SIZE))
   );
@@ -408,6 +494,25 @@ export class TransactionsComponent {
   protected setMonth(month: string): void {
     this.dateFrom.set(month ? `${month}-01` : '');
     this.dateTo.set(month ? lastDayOf(month) : '');
+  }
+
+  /** Sets the date range to the billing period closing in a 'YYYY-MM' month, or clears it for ''. */
+  protected setPeriod(month: string): void {
+    const period = this.billingPeriods().find(p => p.month === month);
+    this.dateFrom.set(period?.start ?? '');
+    this.dateTo.set(period?.end ?? '');
+  }
+
+  /** Saves the day the selected period actually closed and shows the period with that closing. */
+  protected setPeriodClosing(date: string): void {
+    const account = this.billingAccount();
+    if (!account || !date) return;
+    this.accounts.recordClosing(account.id, date);
+    const billing = this.accounts.getById(account.id)?.billing;
+    if (!billing) return;
+    const period = periodOf(billing, date);
+    this.dateFrom.set(period.start);
+    this.dateTo.set(period.end);
   }
 
   protected clearFilters(): void {

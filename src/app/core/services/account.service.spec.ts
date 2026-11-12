@@ -31,6 +31,26 @@ describe('AccountService', () => {
     expect(service.hasSeveral()).toBe(true);
   });
 
+  it('should set and clear the day a card closes, keeping the closing dates given', () => {
+    const service = TestBed.inject(AccountService);
+    service.recordClosing('cash', '2026-09-17');
+    expect(service.getById('cash')!.billing).toEqual({ closingDay: 17, closings: ['2026-09-17'] });
+
+    service.setClosingDay('cash', 19);
+    expect(service.getById('cash')!.billing).toEqual({ closingDay: 19, closings: ['2026-09-17'] });
+    service.update('cash', { name: 'Tarjeta', initialBalance: 0, currency: 'CLP' });
+    expect(service.getById('cash')!.billing).toEqual({ closingDay: 19, closings: ['2026-09-17'] });
+    expect(JSON.parse(localStorage.getItem('accounts')!)[1].billing).toEqual({ closingDay: 19, closings: ['2026-09-17'] });
+
+    service.setClosingDay('cash', 40);
+    expect(service.getById('cash')!.billing!.closingDay).toBe(19);
+    service.recordClosing('cash', '2026-13-01');
+    expect(service.getById('cash')!.billing!.closings).toEqual(['2026-09-17']);
+
+    service.setClosingDay('cash', null);
+    expect(service.getById('cash')).not.toHaveProperty('billing');
+  });
+
   it('should add, rename and persist accounts', () => {
     const service = TestBed.inject(AccountService);
     const card = service.add({ name: 'Tarjeta', initialBalance: -50000, currency: 'CLP' });

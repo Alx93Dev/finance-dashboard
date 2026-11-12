@@ -6,6 +6,7 @@ import { Category } from '../models/category.model';
 import { Goal } from '../models/goal.model';
 import { Transaction } from '../models/transaction.model';
 import { Transfer } from '../models/transfer.model';
+import { parseBillingCycle } from './billing-period';
 
 /** Marks a JSON file as a backup made by this app. */
 export const BACKUP_APP_ID = 'finance-dashboard';
@@ -166,7 +167,10 @@ function parseAccount(item: unknown): Account | null {
   // Backups from before multiple currencies (schema version 7 or older) are all in pesos.
   const currency = a['currency'] === undefined ? 'CLP' : a['currency'];
   if (!isCurrency(currency)) return null;
-  return { id: a['id'], name: a['name'], initialBalance, currency };
+  const account: Account = { id: a['id'], name: a['name'], initialBalance, currency };
+  // A damaged billing cycle only loses the billing periods, not the account.
+  const billing = parseBillingCycle(a['billing']);
+  return billing ? { ...account, billing } : account;
 }
 
 function parseTransfer(item: unknown): Transfer | null {

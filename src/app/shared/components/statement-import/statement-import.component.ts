@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { MoneyPipe } from '../../pipes/money.pipe';
 import { AccountService } from '../../../core/services/account.service';
@@ -177,6 +177,17 @@ const TRANSFER_KINDS: { kind: OwnTransferKind; one: string; many: string }[] = [
           @if (duplicates() > 0) { · {{ duplicates() }} {{ duplicates() === 1 ? 'ya estaba registrado' : 'ya estaban registrados' }} }
           @if (statement().skipped > 0) { · {{ statement().skipped }} {{ statement().skipped === 1 ? 'fila no se pudo leer' : 'filas no se pudieron leer' }} }
         </p>
+        @if (statementEnd()) {
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label class="flex items-center gap-2">
+              <input id="statement-save-closing" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900" [checked]="saveClosing()" (change)="saveClosing.set($any($event.target).checked)" />
+              Guardar como cierre de facturación de la tarjeta el
+            </label>
+            <label for="statement-closing" class="sr-only">Fecha de cierre de facturación</label>
+            <input id="statement-closing" type="date" [class]="selectClass + ' !w-auto'" [value]="closing()" [disabled]="!saveClosing()" (change)="closing.set($any($event.target).value)" />
+          </div>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Suele ser el último día de la cartola. Con él ves los gastos de la tarjeta por período de facturación en Transacciones.</p>
+        }
         @for (group of transferGroups(); track group.kind) {
           <div class="mt-2">
             <label [for]="'statement-transfer-' + group.kind" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -341,6 +352,20 @@ export class StatementImportComponent {
   protected readonly duplicates = computed(() => this.split().duplicates);
   protected readonly beforeFrom = computed(() => this.split().beforeFrom);
 
+  /**
+   * Last day of a credit card statement, which is usually the day it closed;
+   * empty when neither the file nor the account looks like a card.
+   */
+  protected readonly statementEnd = computed(() => {
+    const account = this.accounts.getById(this.accountId());
+    const isCard = this.table().creditCard || !!account?.billing ||
+      /tarjeta|credito|visa|mastercard/.test(normalize(account?.name ?? ''));
+    return isCard ? this.statement().rows.reduce((max, row) => (row.date > max ? row.date : max), '') : '';
+  });
+  /** Closing date to save with the import, starting on the statement's last day. */
+  protected readonly closing = linkedSignal(() => this.statementEnd());
+  protected readonly saveClosing = signal(true);
+
   /** Other accounts in the same currency, which can receive or send a transfer. */
   protected readonly transferTargets = computed(() => {
     const own = this.accounts.getById(this.accountId());
@@ -457,6 +482,9 @@ export class StatementImportComponent {
         categoryId: this.categoryFor({ ...row, category }, ids),
         accountId: this.accountId(),
       });
+    }
+    if (this.statementEnd() && this.saveClosing() && this.closing()) {
+      this.accounts.recordClosing(this.accountId(), this.closing());
     }
     this.imported.emit(rows.length);
   }

@@ -3,6 +3,7 @@ import { StatementImportComponent } from './statement-import.component';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { parseCsv } from '../../../core/services/statement-import';
 import { AccountService } from '../../../core/services/account.service';
+import { BillingCycle } from '../../../core/models/account.model';
 
 const STATEMENT = [
   'Banco Ejemplo;Cuenta 123',
@@ -201,6 +202,66 @@ describe('StatementImportComponent', () => {
     skip.dispatchEvent(new Event('change'));
     await fixture.whenStable();
     expect(root.textContent).toContain('1 movimiento nuevo');
+  });
+
+  describe('billing closing', () => {
+    const CARD = 'Fecha;Descripción;Categoría;Cargo;Abono\n20/08/2026;MI PANERA;Alimentación;2790;\n17/09/2026;COBRO ADM MENSUAL;Gastos Banco;6962;\n05/09/2026;UNIMARC;Alimentación;8200;';
+
+    function addCard(billing?: BillingCycle) {
+      const service = TestBed.inject(AccountService);
+      return service.add({ name: 'Tarjeta BCI', initialBalance: 0, currency: 'CLP', ...(billing ? { billing } : {}) });
+    }
+
+    async function pickAccount(fixture: { whenStable(): Promise<unknown> }, root: HTMLElement, id: string) {
+      const select = root.querySelector<HTMLSelectElement>('#statement-account')!;
+      select.value = id;
+      select.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+    }
+
+    const importButton = (root: HTMLElement) =>
+      Array.from(root.querySelectorAll('button')).find(b => /^Importar \d+$/.test(b.textContent!.trim()))!;
+
+    it('should not offer it for an account that is not a card', async () => {
+      addCard();
+      const { root } = await render(CARD);
+      expect(root.querySelector('#statement-closing')).toBeNull();
+    });
+
+    it('should save the statement\'s last day as the card\'s closing', async () => {
+      const card = addCard();
+      const { fixture, root } = await render(CARD);
+      await pickAccount(fixture, root, card.id);
+
+      expect(root.querySelector<HTMLInputElement>('#statement-closing')!.value).toBe('2026-09-17');
+      importButton(root).click();
+      await fixture.whenStable();
+
+      expect(TestBed.inject(AccountService).getById(card.id)!.billing).toEqual({ closingDay: 17, closings: ['2026-09-17'] });
+    });
+
+    it('should save another date or none, as chosen', async () => {
+      const card = addCard({ closingDay: 19 });
+      const { fixture, root } = await render(CARD);
+      await pickAccount(fixture, root, card.id);
+      const closing = root.querySelector<HTMLInputElement>('#statement-closing')!;
+      closing.value = '2026-09-18';
+      closing.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      importButton(root).click();
+      await fixture.whenStable();
+      expect(TestBed.inject(AccountService).getById(card.id)!.billing).toEqual({ closingDay: 19, closings: ['2026-09-18'] });
+
+      const other = addCard({ closingDay: 19 });
+      const second = await render(CARD);
+      await pickAccount(second.fixture, second.root, other.id);
+      const save = second.root.querySelector<HTMLInputElement>('#statement-save-closing')!;
+      save.checked = false;
+      save.dispatchEvent(new Event('change'));
+      await second.fixture.whenStable();
+      importButton(second.root).click();
+      expect(TestBed.inject(AccountService).getById(other.id)!.billing).toEqual({ closingDay: 19 });
+    });
   });
 
   it('should explain an empty file', async () => {

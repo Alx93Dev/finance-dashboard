@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { PAGE_SIZE, TransactionsComponent } from './transactions.component';
 import { Transaction } from '../../core/models/transaction.model';
+import { AccountService } from '../../core/services/account.service';
 
 const STORED: Transaction[] = [
   { id: 'a', description: 'Arriendo',   amount: 450000,  categoryId: '7', date: '2025-01-01', type: 'expense', accountId: 'main' },
@@ -147,6 +148,85 @@ describe('TransactionsComponent', () => {
       select.dispatchEvent(new Event('change'));
       await fixture.whenStable();
       expect(descriptions(root)).toEqual(['Uber']);
+    });
+  });
+
+  describe('billing periods', () => {
+    const CARD_MOVEMENTS: Transaction[] = [
+      { id: 'p1', description: 'Panadería',  amount: 2790,  categoryId: '3', date: '2026-08-20', type: 'expense', accountId: 'card' },
+      { id: 'p2', description: 'Sodimac',    amount: 20370, categoryId: '8', date: '2026-09-02', type: 'expense', accountId: 'card' },
+      { id: 'p3', description: 'Devolución', amount: 5000,  categoryId: '2', date: '2026-09-10', type: 'income',  accountId: 'card' },
+      { id: 'p4', description: 'Comisión',   amount: 6962,  categoryId: '8', date: '2026-09-17', type: 'expense', accountId: 'card' },
+      { id: 'p5', description: 'Outlet',     amount: 49980, categoryId: '8', date: '2026-09-18', type: 'expense', accountId: 'card' },
+      { id: 'p6', description: 'Almuerzo',   amount: 8000,  categoryId: '3', date: '2026-08-18', type: 'expense', accountId: 'card' },
+      { id: 'm1', description: 'Sueldo',     amount: 900000, categoryId: '1', date: '2026-09-05', type: 'income', accountId: 'main' },
+    ];
+
+    async function render(billing: object | null = { closingDay: 19, closings: ['2026-09-17'] }) {
+      localStorage.setItem('accounts', JSON.stringify([
+        { id: 'main', name: 'Cuenta corriente', initialBalance: 0, currency: 'CLP' },
+        { id: 'card', name: 'Tarjeta BCI', initialBalance: 0, currency: 'CLP', ...(billing ? { billing } : {}) },
+      ]));
+      localStorage.setItem('transactions', JSON.stringify(CARD_MOVEMENTS));
+      localStorage.setItem('schema_version', '8');
+      const fixture = TestBed.createComponent(TransactionsComponent);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+      const change = async (id: string, value: string) => {
+        const field = root.querySelector<HTMLInputElement | HTMLSelectElement>(id)!;
+        field.value = value;
+        field.dispatchEvent(new Event('change'));
+        await fixture.whenStable();
+      };
+      return { fixture, root, change };
+    }
+
+    it('should not offer billing periods for an account without a closing day', async () => {
+      const { root, change } = await render(null);
+      await change('#account-filter', 'card');
+      expect(root.querySelector('#period-filter')).toBeNull();
+    });
+
+    it('should offer billing periods once the card is chosen', async () => {
+      const { root, change } = await render();
+      expect(root.querySelector('#period-filter')).toBeNull();
+      await change('#account-filter', 'card');
+      expect(root.querySelector('#period-filter')).not.toBeNull();
+    });
+
+    it('should show the movements billed in a period and what they add up to', async () => {
+      const { root, change } = await render();
+      await change('#account-filter', 'card');
+
+      const options = Array.from(root.querySelectorAll<HTMLOptionElement>('#period-filter option')).map(o => o.value);
+      expect(options).toContain('2026-09');
+      expect(options).toContain('2026-08');
+      // Periods run from the card's first movement up to today's.
+      expect(options.at(-1)).toBe('2026-08');
+
+      await change('#period-filter', '2026-09');
+      expect(root.querySelector<HTMLInputElement>('#date-from')!.value).toBe('2026-08-20');
+      expect(root.querySelector<HTMLInputElement>('#date-to')!.value).toBe('2026-09-17');
+      expect(descriptions(root)).toEqual(['Comisión', 'Devolución', 'Sodimac', 'Panadería']);
+      const summary = root.querySelector('#period-summary')!.textContent!.replace(/\s+/g, ' ');
+      expect(summary).toMatch(/\$30[.,]122/);
+      expect(summary).toMatch(/abonos \$5[.,]000/);
+    });
+
+    it('should save a different closing day for a period and move the next one', async () => {
+      const { root, change } = await render();
+      await change('#account-filter', 'card');
+      await change('#period-filter', '2026-09');
+
+      await change('#period-closing', '2026-09-18');
+
+      expect(TestBed.inject(AccountService).getById('card')!.billing).toEqual({ closingDay: 19, closings: ['2026-09-18'] });
+      expect(root.querySelector<HTMLSelectElement>('#period-filter')!.value).toBe('2026-09');
+      expect(root.querySelector<HTMLInputElement>('#date-to')!.value).toBe('2026-09-18');
+      expect(descriptions(root)).toEqual(['Outlet', 'Comisión', 'Devolución', 'Sodimac', 'Panadería']);
+
+      await change('#period-filter', '2026-10');
+      expect(root.querySelector<HTMLInputElement>('#date-from')!.value).toBe('2026-09-19');
     });
   });
 

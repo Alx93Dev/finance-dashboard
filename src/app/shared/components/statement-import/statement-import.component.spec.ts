@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { StatementImportComponent } from './statement-import.component';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { parseCsv } from '../../../core/services/statement-import';
+import { AccountService } from '../../../core/services/account.service';
 
 const STATEMENT = [
   'Banco Ejemplo;Cuenta 123',
@@ -143,6 +144,36 @@ describe('StatementImportComponent', () => {
     from.dispatchEvent(new Event('change'));
     await fixture.whenStable();
     expect(root.querySelector('[role="status"]')!.textContent!.replace(/\s+/g, ' ')).toContain('1 movimiento nuevo · 1 es anterior');
+  });
+
+  it('should record card payments as transfers to the card account, once', async () => {
+    localStorage.setItem('accounts', JSON.stringify([
+      { id: 'main', name: 'Cuenta corriente', initialBalance: 0, currency: 'CLP' },
+      { id: 'card', name: 'Tarjeta de crédito', initialBalance: 0, currency: 'CLP' },
+    ]));
+    localStorage.setItem('transfers', JSON.stringify([
+      { id: 't1', fromAccountId: 'main', toAccountId: 'card', amount: 20000, date: '2026-10-17', description: 'MONTO CANCELADO' },
+    ]));
+    const { fixture, root } = await render([
+      'Fecha;Descripción;Cargo;Abono',
+      '19/10/2026;PAGO TARJETA DE CREDITO MASTERCARD;10.000;',
+      '18/10/2026;PAGO TARJETA DE CREDITO MASTERCARD;20.000;',
+      '18/10/2026;MERPAGO*PEPO;3.150;',
+      '18/10/2026;TRASPASO DE FONDOS ENTRE CUENTAS PROPIAS;1.000;',
+    ].join('\n'));
+    expect(root.querySelector<HTMLSelectElement>('#statement-transfer-own')!.value).toBe('');
+    expect(root.querySelector<HTMLSelectElement>('#statement-transfer-card')!.value).toBe('card');
+    expect(root.textContent).toContain('2 movimientos parecen pagos de tarjeta');
+    expect(root.textContent).toContain('1 ya estaba registrado como transferencia');
+
+    Array.from(root.querySelectorAll('button')).find(b => /^Importar \d+$/.test(b.textContent!.trim()))!.click();
+    await fixture.whenStable();
+
+    const transfers = TestBed.inject(AccountService).transfers();
+    expect(transfers).toHaveLength(2);
+    expect(transfers.find(t => t.id !== 't1')).toMatchObject({ fromAccountId: 'main', toAccountId: 'card', amount: 10000, date: '2026-10-19' });
+    const tx = TestBed.inject(TransactionService).transactions();
+    expect(tx.map(t => t.description)).toEqual(['UBER', 'MERPAGO*PEPO', 'TRASPASO DE FONDOS ENTRE CUENTAS PROPIAS']);
   });
 
   it('should explain an empty file', async () => {

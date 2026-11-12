@@ -12,7 +12,10 @@ import {
   findHeaderRow,
   hasOnlyPositiveAmounts,
   isSameMovement,
+  isSameTransfer,
   looksLikeCreditCard,
+  OwnTransferKind,
+  ownTransferKind,
   normalize,
   readStatement,
 } from '../../../core/services/statement-import';
@@ -24,6 +27,11 @@ const SELECT = 'w-full px-2 py-1.5 rounded-lg border border-gray-200 bg-white te
 const PREVIEW_ROWS = 5;
 
 type AmountMode = 'signed' | 'split' | 'balance';
+
+const TRANSFER_KINDS: { kind: OwnTransferKind; one: string; many: string }[] = [
+  { kind: 'card', one: 'movimiento parece pago de tarjeta', many: 'movimientos parecen pagos de tarjeta' },
+  { kind: 'own', one: 'movimiento parece traspaso entre tus cuentas', many: 'movimientos parecen traspasos entre tus cuentas' },
+];
 
 @Component({
   selector: 'app-statement-import',
@@ -166,6 +174,24 @@ type AmountMode = 'signed' | 'split' | 'balance';
           @if (duplicates() > 0) { · {{ duplicates() }} {{ duplicates() === 1 ? 'ya estaba registrado' : 'ya estaban registrados' }} }
           @if (statement().skipped > 0) { · {{ statement().skipped }} {{ statement().skipped === 1 ? 'fila no se pudo leer' : 'filas no se pudieron leer' }} }
         </p>
+        @for (group of transferGroups(); track group.kind) {
+          <div class="mt-2">
+            <label [for]="'statement-transfer-' + group.kind" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+              {{ group.rows.length }} {{ group.rows.length === 1 ? group.one : group.many }}. Registrarlos como transferencia con:
+            </label>
+            <select [id]="'statement-transfer-' + group.kind" [class]="selectClass" (change)="setTransferAccount(group.kind, $event)">
+              <option value="" [selected]="group.target === ''">(no, dejarlos como gasto o ingreso)</option>
+              @for (account of transferTargets(); track account.id) {
+                <option [value]="account.id" [selected]="account.id === group.target">{{ account.name }}</option>
+              }
+            </select>
+            @if (group.target && group.rows.length > group.transfers.length) {
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ group.rows.length - group.transfers.length }} ya {{ group.rows.length - group.transfers.length === 1 ? 'estaba registrado' : 'estaban registrados' }} como transferencia desde la otra cuenta.
+              </p>
+            }
+          </div>
+        }
         @if (missingCategories().length > 0) {
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Se crearán estas categorías: {{ missingCategoryNames() }}.</p>
         }
@@ -267,6 +293,36 @@ export class StatementImportComponent {
   protected readonly duplicates = computed(() => this.split().duplicates);
   protected readonly beforeFrom = computed(() => this.split().beforeFrom);
 
+  /** Other accounts in the same currency, which can receive or send a transfer. */
+  protected readonly transferTargets = computed(() => {
+    const own = this.accounts.getById(this.accountId());
+    return this.accounts.accounts().filter(a => a.id !== own?.id && a.currency === own?.currency);
+  });
+  /** Account on the other side of card payments and of own transfers; empty keeps them as expenses and income. */
+  protected readonly transferAccountIds = signal<Record<OwnTransferKind, string>>({ card: '', own: '' });
+  /** For each kind found in the file: its rows, the chosen account and the transfers to create. */
+  protected readonly transferGroups = computed(() => {
+    if (this.transferTargets().length === 0) return [];
+    const own = this.accountId();
+    const existing = this.accounts.transfers();
+    return TRANSFER_KINDS.map(kind => {
+      const chosen = this.transferAccountIds()[kind.kind];
+      const target = this.transferTargets().some(a => a.id === chosen) ? chosen : '';
+      const rows = this.newRows().filter(row => ownTransferKind(row.description) === kind.kind);
+      const transfers = !target ? [] : rows
+        .map(row => ({
+          fromAccountId: row.type === 'expense' ? own : target,
+          toAccountId: row.type === 'expense' ? target : own,
+          amount: row.amount,
+          date: row.date,
+          description: row.description,
+        }))
+        // Already recorded from the other account's statement.
+        .filter(transfer => !existing.some(t => isSameTransfer(t, transfer)));
+      return { ...kind, target, rows, transfers };
+    }).filter(group => group.rows.length > 0);
+  });
+
   /** Categories named in the file that don't exist yet for that type; importing creates them. */
   protected readonly missingCategories = computed(() => {
     const known = new Set(this.tx.categories().map(c => categoryKey(c.type, c.name)));
@@ -293,6 +349,8 @@ export class StatementImportComponent {
       const fallback = (index: number, other: number) => (index === NO_COLUMN ? other : index);
       this.mode.set(useSplit ? 'split' : useBalance ? 'balance' : 'signed');
       this.positiveIsExpense.set(creditCard);
+      // Card payments usually go to the card account; moves between own accounts are less clear.
+      this.transferAccountIds.set({ card: this.guessCardCounterpart(creditCard), own: '' });
       this.mapping.set({
         date: fallback(detected.date, 0),
         description: detected.description,
@@ -310,6 +368,19 @@ export class StatementImportComponent {
     this.mapping.update(mapping => ({ ...mapping, [field]: index }));
   }
 
+  /** A card account for a checking account statement, and the reverse; none when it isn't clear. */
+  private guessCardCounterpart(creditCard: boolean): string {
+    const targets = this.transferTargets();
+    const isCard = (name: string) => /tarjeta|credito|visa|mastercard/.test(normalize(name));
+    const match = targets.find(a => (creditCard ? !isCard(a.name) : isCard(a.name)));
+    return match?.id ?? (targets.length === 1 ? targets[0].id : '');
+  }
+
+  protected setTransferAccount(kind: OwnTransferKind, event: Event): void {
+    const id = (event.target as HTMLSelectElement).value;
+    this.transferAccountIds.update(ids => ({ ...ids, [kind]: id }));
+  }
+
   protected dayAfter(date: string): string {
     const [year, month, day] = date.split('-').map(Number);
     const next = new Date(Date.UTC(year, month - 1, day + 1));
@@ -325,8 +396,16 @@ export class StatementImportComponent {
       this.tx.addCategory({ ...category, color: unusedColor(this.tx.categories()) });
     }
     const ids = new Map(this.tx.categories().map(c => [categoryKey(c.type, c.name), c.id]));
+    const asTransfers = new Set<OwnTransferKind>();
+    for (const group of this.transferGroups()) {
+      if (!group.target) continue;
+      asTransfers.add(group.kind);
+      for (const transfer of group.transfers) this.accounts.transfer(transfer);
+    }
     const rows = this.newRows();
     for (const { category, ...row } of rows) {
+      const kind = ownTransferKind(row.description);
+      if (kind && asTransfers.has(kind)) continue;
       this.tx.add({
         ...row,
         categoryId: this.categoryFor(row.type, category, ids),

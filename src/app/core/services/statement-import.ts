@@ -1,4 +1,5 @@
 import { Transaction } from '../models/transaction.model';
+import { Transfer } from '../models/transfer.model';
 
 /** Which column holds each field; -1 when the statement has no such column. */
 export interface ColumnMapping {
@@ -261,4 +262,24 @@ function signsFromBalance(rows: string[][], mapping: ColumnMapping, cell: (row: 
 export function isSameMovement(a: Pick<Transaction, 'date' | 'amount' | 'type' | 'description'>, b: typeof a): boolean {
   const text = (value: string) => normalize(value).replace(/\s+/g, ' ').trim();
   return a.date === b.date && a.amount === b.amount && a.type === b.type && text(a.description) === text(b.description);
+}
+
+/** Money moving between the person's own accounts: a card payment, or a move between own accounts. */
+export type OwnTransferKind = 'card' | 'own';
+
+/** Whether a statement line, as BCI words it, is a card payment or a move between own accounts rather than a real expense or income. */
+export function ownTransferKind(description: string): OwnTransferKind | null {
+  const text = normalize(description).replace(/\s+/g, ' ');
+  if (/pago tarjeta de credito|monto cancelado/.test(text)) return 'card';
+  if (/cuentas? propias?/.test(text)) return 'own';
+  return null;
+}
+
+/**
+ * Same accounts and amount within a few days: the same transfer seen from the
+ * other account's statement (a card payment shows a day or two later on the card).
+ */
+export function isSameTransfer(a: Pick<Transfer, 'fromAccountId' | 'toAccountId' | 'amount' | 'date'>, b: typeof a, days = 3): boolean {
+  const gap = Math.abs(Date.parse(a.date) - Date.parse(b.date)) / 86_400_000;
+  return a.fromAccountId === b.fromAccountId && a.toAccountId === b.toAccountId && a.amount === b.amount && gap <= days;
 }

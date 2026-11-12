@@ -4,7 +4,9 @@ import {
   findHeaderRow,
   hasOnlyPositiveAmounts,
   isSameMovement,
+  isSameTransfer,
   looksLikeCreditCard,
+  ownTransferKind,
   parseCsv,
   parseStatementAmount,
   parseStatementDate,
@@ -166,5 +168,27 @@ describe('isSameMovement', () => {
     expect(isSameMovement(a, { ...a, description: 'cafe central' })).toBe(true);
     expect(isSameMovement(a, { ...a, amount: 12991 })).toBe(false);
     expect(isSameMovement(a, { ...a, date: '2025-01-06' })).toBe(false);
+  });
+});
+
+describe('ownTransferKind', () => {
+  it('should recognize card payments and moves between own accounts', () => {
+    expect(ownTransferKind('PAGO TARJETA DE CREDITO MASTERCARD')).toBe('card');
+    expect(ownTransferKind('Pago Tarjeta De Credito Mastercard')).toBe('card');
+    expect(ownTransferKind('MONTO CANCELADO')).toBe('card');
+    expect(ownTransferKind('TRASPASO DE FONDOS ENTRE CUENTAS PROPIAS')).toBe('own');
+    expect(ownTransferKind('ABONO POR TRASPASO FONDOS CUENTA PROPIA')).toBe('own');
+    expect(ownTransferKind('TRANSFER A XPRESS LIMITAD')).toBeNull();
+    expect(ownTransferKind('MERPAGO*PEPO 63073')).toBeNull();
+  });
+});
+
+describe('isSameTransfer', () => {
+  it('should match the same accounts and amount a few days apart', () => {
+    const paid = { fromAccountId: 'cc', toAccountId: 'card', amount: 10000, date: '2026-10-19' };
+    expect(isSameTransfer(paid, { ...paid, date: '2026-10-21' })).toBe(true);
+    expect(isSameTransfer(paid, { ...paid, date: '2026-10-25' })).toBe(false);
+    expect(isSameTransfer(paid, { ...paid, amount: 9000 })).toBe(false);
+    expect(isSameTransfer(paid, { ...paid, fromAccountId: 'card', toAccountId: 'cc' })).toBe(false);
   });
 });

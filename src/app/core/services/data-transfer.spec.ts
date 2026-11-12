@@ -106,6 +106,12 @@ describe('parseBackup', () => {
       .toThrow('presupuestos dañados');
   });
 
+  it('should keep the frequency of recurring rules', () => {
+    const weekly = { ...RECURRING[0], frequency: 'weekly', lastDate: '2025-01-27' };
+    expect(parseBackup(backupText({ recurring: [weekly] }), 7).recurring).toEqual([expect.objectContaining({ frequency: 'weekly', lastDate: '2025-01-27' })]);
+    expect(() => parseBackup(backupText({ recurring: [{ ...RECURRING[0], frequency: 'daily' }] }), 7)).toThrow('recurrentes dañadas');
+  });
+
   it('should reject a backup with a damaged recurring rule', () => {
     expect(() => parseBackup(backupText({ recurring: [{ ...RECURRING[0], dayOfMonth: 32 }] }), 7))
       .toThrow('recurrentes dañadas');

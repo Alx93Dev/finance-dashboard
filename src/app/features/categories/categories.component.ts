@@ -43,7 +43,8 @@ const INPUT = 'px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm fo
           <ul class="divide-y divide-gray-100 dark:divide-gray-800">
             @for (category of group.categories; track category.id) {
               <li class="px-5 py-3">
-                <div class="flex items-center gap-3" [class.opacity-60]="category.archived">
+                <div class="flex flex-wrap items-center gap-3" [class.opacity-60]="category.archived">
+                  <div class="flex flex-1 min-w-48 items-center gap-3">
                   <input
                     type="color"
                     [value]="category.color"
@@ -59,6 +60,8 @@ const INPUT = 'px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm fo
                     [class]="inputClass + ' flex-1 min-w-0'"
                     [attr.aria-label]="'Nombre de ' + category.name"
                   />
+                  </div>
+                  <div class="ml-auto flex items-center gap-2">
                   <span class="hidden sm:inline w-28 text-right text-xs text-gray-400 dark:text-gray-500 tabular-nums">
                     @if (category.archived) {
                       Archivada
@@ -92,6 +95,7 @@ const INPUT = 'px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm fo
                   >
                     Eliminar
                   </button>
+                  </div>
                 </div>
 
                 @if (pendingDelete()?.category?.id === category.id) {

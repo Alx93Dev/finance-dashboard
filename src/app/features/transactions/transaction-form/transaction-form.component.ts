@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { RecurringFrequency } from '../../../core/models/recurring.model';
 import { Transaction } from '../../../core/models/transaction.model';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { RecurringService } from '../../../core/services/recurring.service';
@@ -191,10 +192,22 @@ function positive(control: AbstractControl): ValidationErrors | null {
                 formControlName="repeat"
                 class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800"
               />
-              <label for="repeat" class="text-sm text-gray-700 dark:text-gray-300">
-                Repetir cada mes
-                <span class="block text-xs text-gray-400 dark:text-gray-500">Se agregará sola el mismo día de cada mes.</span>
-              </label>
+              <div class="flex-1">
+                <label for="repeat" class="text-sm text-gray-700 dark:text-gray-300">Repetir</label>
+                @if (repeating()) {
+                  <select
+                    id="frequency"
+                    formControlName="frequency"
+                    aria-label="Frecuencia"
+                    class="ml-2 px-2 py-1 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  >
+                    <option value="weekly">cada semana</option>
+                    <option value="monthly">cada mes</option>
+                    <option value="yearly">cada año</option>
+                  </select>
+                }
+                <span class="block text-xs text-gray-400 dark:text-gray-500">{{ repeatHint() }}</span>
+              </div>
             </div>
           } @else {
             <div class="mb-6"></div>
@@ -242,6 +255,20 @@ export class TransactionFormComponent implements OnInit {
     date:        ['', Validators.required],
     accountId:   [this.accounts.defaultId(), Validators.required],
     repeat:      [false],
+    frequency:   ['monthly' as RecurringFrequency],
+  });
+
+  protected readonly repeating = toSignal(this.form.controls.repeat.valueChanges, { initialValue: false });
+  private readonly frequency = toSignal(this.form.controls.frequency.valueChanges, {
+    initialValue: this.form.controls.frequency.value,
+  });
+  protected readonly repeatHint = computed(() => {
+    if (!this.repeating()) return 'Se agregará sola cada semana, mes o año.';
+    switch (this.frequency()) {
+      case 'weekly': return 'Se agregará sola el mismo día de cada semana.';
+      case 'yearly': return 'Se agregará sola en la misma fecha de cada año.';
+      default: return 'Se agregará sola el mismo día de cada mes.';
+    }
   });
 
   private readonly selectedType = toSignal(this.form.controls.type.valueChanges, {
@@ -273,6 +300,7 @@ export class TransactionFormComponent implements OnInit {
         date:        transaction.date,
         accountId:   transaction.accountId,
         repeat:      false,
+        frequency:   'monthly',
       });
     }
 
@@ -288,7 +316,7 @@ export class TransactionFormComponent implements OnInit {
   protected onSubmit(): void {
     if (this.form.invalid) return;
 
-    const { repeat, ...values } = this.form.getRawValue();
+    const { repeat, frequency, ...values } = this.form.getRawValue();
     const editingTransaction = this.editingTransaction();
 
     if (editingTransaction) {
@@ -296,7 +324,7 @@ export class TransactionFormComponent implements OnInit {
     } else {
       this.transactionService.add(values);
       if (repeat) {
-        this.recurringService.addFrom(values);
+        this.recurringService.addFrom(values, frequency);
       }
     }
 

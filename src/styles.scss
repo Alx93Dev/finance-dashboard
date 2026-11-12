@@ -22,5 +22,8 @@
 
   body {
     background: white;
+    // Keep the category bars' colors on paper.
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }

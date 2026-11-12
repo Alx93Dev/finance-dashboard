@@ -99,6 +99,34 @@ describe('TransactionFormComponent', () => {
     ]);
   });
 
+  it('should start a weekly rule when that frequency is chosen', async () => {
+    const fixture = TestBed.createComponent(TransactionFormComponent);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const fill = (selector: string, value: string, event = 'input') => {
+      const el = root.querySelector<HTMLInputElement | HTMLSelectElement>(selector)!;
+      el.value = value;
+      el.dispatchEvent(new Event(event));
+    };
+    fill('#description', 'Feria');
+    fill('#amount', '15000');
+    fill('#categoryId', '3', 'change');
+    fill('#date', '2025-01-27');
+    expect(root.querySelector('#frequency')).toBeNull();
+    const repeat = root.querySelector<HTMLInputElement>('#repeat')!;
+    repeat.checked = true;
+    repeat.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    fill('#frequency', 'weekly', 'change');
+    await fixture.whenStable();
+    expect(root.textContent).toContain('el mismo día de cada semana');
+    root.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+
+    expect(TestBed.inject(RecurringService).rules()).toEqual([
+      expect.objectContaining({ description: 'Feria', frequency: 'weekly', lastDate: '2025-01-27' }),
+    ]);
+  });
+
   it('should not offer to repeat when editing', async () => {
     const fixture = TestBed.createComponent(TransactionFormComponent);
     fixture.componentRef.setInput('editingTransaction', {

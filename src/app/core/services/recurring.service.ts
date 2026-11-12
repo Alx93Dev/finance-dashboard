@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Recurring } from '../models/recurring.model';
+import { Recurring, RecurringFrequency } from '../models/recurring.model';
 import { Transaction } from '../models/transaction.model';
 import { StorageService } from './storage.service';
 import { TransactionService, shiftMonth } from './transaction.service';
@@ -17,6 +17,33 @@ export function dateInMonth(month: string, day: number): string {
   return `${month}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
 }
 
+/** The date `days` after `date`, both 'YYYY-MM-DD'. */
+export function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Dates a rule comes due after it last ran, up to `today` ('YYYY-MM-DD'), oldest first.
+ * Monthly and yearly rules keep their day of the month; weekly ones their weekday.
+ */
+export function dueDates(rule: Recurring, today: string): string[] {
+  const dates: string[] = [];
+  if (rule.frequency === 'weekly') {
+    const last = rule.lastDate ?? dateInMonth(rule.lastMonth, rule.dayOfMonth);
+    for (let date = addDays(last, 7); date <= today; date = addDays(date, 7)) dates.push(date);
+    return dates;
+  }
+  const step = rule.frequency === 'yearly' ? 12 : 1;
+  const currentMonth = today.slice(0, 7);
+  for (let month = shiftMonth(rule.lastMonth, step); month <= currentMonth; month = shiftMonth(month, step)) {
+    const date = dateInMonth(month, rule.dayOfMonth);
+    if (date > today) break;
+    dates.push(date);
+  }
+  return dates;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RecurringService {
   private readonly storage = inject(StorageService);
@@ -25,10 +52,10 @@ export class RecurringService {
   readonly rules = signal<Recurring[]>(this.storage.get<Recurring[]>(STORAGE_KEY, []));
 
   /**
-   * Starts repeating `transaction` every month. The transaction itself covers
-   * its own month, so the first copy is created the following month.
+   * Starts repeating `transaction` every week, month or year. The transaction
+   * itself is the first occurrence, so the first copy comes one period later.
    */
-  addFrom(transaction: Omit<Transaction, 'id'>): Recurring {
+  addFrom(transaction: Omit<Transaction, 'id'>, frequency: RecurringFrequency = 'monthly'): Recurring {
     const rule: Recurring = {
       id: crypto.randomUUID(),
       description: transaction.description,
@@ -38,6 +65,8 @@ export class RecurringService {
       accountId: transaction.accountId,
       dayOfMonth: Number(transaction.date.slice(8, 10)),
       lastMonth: transaction.date.slice(0, 7),
+      ...(frequency === 'monthly' ? {} : { frequency }),
+      ...(frequency === 'weekly' ? { lastDate: transaction.date } : {}),
     };
     this.setRules([...this.rules(), rule]);
     return rule;
@@ -72,15 +101,12 @@ export class RecurringService {
    * `today`. Returns how many were created.
    */
   generateDue(today = new Date()): number {
-    const currentMonth = monthOf(today);
-    const todayDate = dateInMonth(currentMonth, today.getDate());
+    const todayDate = dateInMonth(monthOf(today), today.getDate());
     let created = 0;
 
     const updated = this.rules().map(rule => {
-      let lastMonth = rule.lastMonth;
-      for (let month = shiftMonth(lastMonth, 1); month <= currentMonth; month = shiftMonth(month, 1)) {
-        const date = dateInMonth(month, rule.dayOfMonth);
-        if (date > todayDate) break;
+      const dates = dueDates(rule, todayDate);
+      for (const date of dates) {
         this.tx.add({
           description: rule.description,
           amount: rule.amount,
@@ -89,10 +115,11 @@ export class RecurringService {
           accountId: rule.accountId,
           date,
         });
-        lastMonth = month;
         created++;
       }
-      return lastMonth === rule.lastMonth ? rule : { ...rule, lastMonth };
+      const last = dates.at(-1);
+      if (!last) return rule;
+      return { ...rule, lastMonth: last.slice(0, 7), ...(rule.frequency === 'weekly' ? { lastDate: last } : {}) };
     });
 
     if (created > 0) this.setRules(updated);

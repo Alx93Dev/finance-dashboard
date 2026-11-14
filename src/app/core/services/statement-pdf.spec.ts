@@ -1,4 +1,4 @@
-import { PdfText, pdfTableRows } from './statement-pdf';
+import { PdfMark, PdfText, markDirection, pdfTableRows } from './statement-pdf';
 
 /** A text run of height 8 whose width is about 4 per character. */
 function at(x: number, y: number, text: string): PdfText {
@@ -66,7 +66,39 @@ describe('pdfTableRows', () => {
     ]);
   });
 
+  it('should put a minus sign on amounts with a money-in arrow', () => {
+    // BCI card statement: a green arrow (in) beside payments, orange (out) beside charges.
+    const page = [
+      at(20, 740, 'Fecha'), at(200, 740, 'Descripción'), at(450, 740, 'Monto'),
+      at(16, 723, '29/10/2026'), at(200, 723, 'MONTO CANCELAD'), at(440, 723, '$ 484.237'),
+      at(16, 700, '29/10/2026'), at(200, 700, 'AVANCE EN 4 CUOT A'), at(440, 700, '$ 171.845'),
+      at(16, 677, '22/10/2026'), at(200, 677, 'NOTA DE CREDITO NACIONA'), at(440, 677, '$ 40.491'),
+    ];
+    const arrow = (y: number, direction: PdfMark['direction']): PdfMark => ({ x: 490, y, width: 8, height: 8, direction });
+    expect(pdfTableRows([page], [[arrow(723, 'in'), arrow(700, 'out'), arrow(676, 'in')]]).slice(1)).toEqual([
+      ['29/10/2026', 'MONTO CANCELAD', '-$ 484.237'],
+      ['29/10/2026', 'AVANCE EN 4 CUOT A', '$ 171.845'],
+      ['22/10/2026', 'NOTA DE CREDITO NACIONA', '-$ 40.491'],
+    ]);
+  });
+
   it('should return nothing useful for a page without a table', () => {
     expect(pdfTableRows([[at(10, 10, 'Hola')]])).toEqual([['Hola']]);
+  });
+});
+
+describe('markDirection', () => {
+  const pixels = (rgb: number[], count: number, alpha?: number) =>
+    new Uint8Array(Array.from({ length: count }, () => (alpha === undefined ? rgb : [...rgb, alpha])).flat());
+
+  it('should read green as money in and orange as a charge', () => {
+    expect(markDirection(pixels([83, 161, 86], 10), 3)).toBe('in');
+    expect(markDirection(pixels([247, 135, 40], 10, 255), 4)).toBe('out');
+  });
+
+  it('should ignore transparent, white and gray pixels', () => {
+    expect(markDirection(pixels([83, 161, 86], 10, 0), 4)).toBeNull();
+    expect(markDirection(pixels([255, 255, 255], 10), 3)).toBeNull();
+    expect(markDirection(pixels([120, 120, 120], 10), 3)).toBeNull();
   });
 });

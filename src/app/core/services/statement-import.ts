@@ -198,9 +198,9 @@ export function readStatement(rows: string[][], mapping: ColumnMapping, options:
     } else if (mapping.amount !== NO_COLUMN) {
       signed = parseStatementAmount(cell(row, mapping.amount));
       if (signed !== null && options.positiveIsExpense) {
-        // Some card statements (BCI's PDF) also print payments as positive amounts.
-        const payment = signed > 0 && CARD_PAYMENT_WORDS.test(normalize(cell(row, mapping.description)).trim());
-        signed = payment ? signed : -signed;
+        // Some card statements (BCI's PDF) also print payments and refunds as positive amounts.
+        const credit = signed > 0 && cardCreditKind(cell(row, mapping.description)) !== null;
+        signed = credit ? signed : -signed;
       }
     } else {
       const credit = parseStatementAmount(cell(row, mapping.credit));
@@ -220,13 +220,32 @@ export function readStatement(rows: string[][], mapping: ColumnMapping, options:
     };
     const category = cell(row, mapping.category ?? NO_COLUMN).trim();
     if (category) parsed.category = category;
+    else if (parsed.type === 'income' && cardCreditKind(parsed.description) === 'refund') parsed.category = REFUND_CATEGORY;
     result.push(parsed);
   });
   return { rows: result, skipped };
 }
 
-/** Card statement lines that are a payment or a refund, not a purchase. */
-const CARD_PAYMENT_WORDS = /^(monto cancelado|pago recibido|abono|reverso|devolucion)/;
+/** Income category for refunds of purchases, created when first needed. */
+export const REFUND_CATEGORY = 'Devoluciones';
+/** Income category for card payments kept as income in the card account. */
+export const CARD_PAYMENT_CATEGORY = 'Pago tarjeta de crédito';
+
+/**
+ * Money into a credit card, as BCI words it (cut to the width of its
+ * columns, like "MONTO CANCELAD" or "NOTA DE CREDITO NACIONA"):
+ * - 'payment': the card being paid ("Monto cancelado", "PAC nacional" for
+ *   the automatic payment);
+ * - 'refund': a purchase given back ("Nota de crédito", "Pago devolución de
+ *   intereses", "Reverso compra").
+ * "Nota débito devolución" undoes a refund, so it is a charge.
+ */
+export function cardCreditKind(description: string): 'payment' | 'refund' | null {
+  const text = normalize(description).replace(/\s+/g, ' ').trim();
+  if (/^(monto cancelad|pago recibido|pago tarjeta|pac naciona|abono)/.test(text)) return 'payment';
+  if (/^(nota (de )?credito|pago devolucion|devolucion|reverso|anulacion)/.test(text)) return 'refund';
+  return null;
+}
 
 /** Words that mark money coming in, for rows whose sign the balance can't tell. */
 const INCOME_WORDS = /^(abono|deposito|transfer(encia)? (de|recibida)|traspaso desde)/;
@@ -270,7 +289,7 @@ export type OwnTransferKind = 'card' | 'own';
 /** Whether a statement line, as BCI words it, is a card payment or a move between own accounts rather than a real expense or income. */
 export function ownTransferKind(description: string): OwnTransferKind | null {
   const text = normalize(description).replace(/\s+/g, ' ');
-  if (/pago tarjeta de credito|monto cancelado/.test(text)) return 'card';
+  if (/pago tarjeta de credito|monto cancelad|^pac naciona/.test(text)) return 'card';
   if (/cuentas? propias?/.test(text)) return 'own';
   return null;
 }
@@ -393,9 +412,11 @@ export function planCardPaymentTransfers(
     const counterpart = t.accountId === cardAccountId ? otherAccountId : cardAccountId;
     if (!counterpart || counterpart === t.accountId || currencyOf(counterpart) !== currencyOf(t.accountId)) return null;
     remove.push(t.id);
+    // On the card's side the payment always comes in, even one wrongly saved as an expense of the card.
+    const outgoing = t.accountId !== cardAccountId && t.type === 'expense';
     return {
-      fromAccountId: t.type === 'expense' ? t.accountId : counterpart,
-      toAccountId: t.type === 'expense' ? counterpart : t.accountId,
+      fromAccountId: outgoing ? t.accountId : counterpart,
+      toAccountId: outgoing ? counterpart : t.accountId,
       amount: t.amount,
       date: t.date,
       description: t.description,
@@ -407,4 +428,25 @@ export function planCardPaymentTransfers(
   const paying = newTransfers(toTransfers(payments.filter(t => t.accountId !== cardAccountId)), existingTransfers);
   const card = newTransfers(toTransfers(payments.filter(t => t.accountId === cardAccountId)), [...existingTransfers, ...paying]);
   return { transfers: [...paying, ...card], remove };
+}
+
+/** Whether an account is a credit card: it has a billing cycle or its name says so. */
+export function isCardAccount(account: { name: string; billing?: unknown }): boolean {
+  return !!account.billing || /tarjeta|credito|visa|mastercard/.test(normalize(account.name));
+}
+
+/**
+ * Payments and refunds saved as expenses of a credit card, as imports of
+ * BCI's PDF did before telling them apart: they are money into the card.
+ * Each comes back as income, with the category to give it.
+ */
+export function misreadCardCredits(
+  transactions: Transaction[],
+  cardAccountIds: Set<string>
+): { transaction: Transaction; kind: 'payment' | 'refund' }[] {
+  return transactions.flatMap(transaction => {
+    if (transaction.type !== 'expense' || !cardAccountIds.has(transaction.accountId)) return [];
+    const kind = cardCreditKind(transaction.description);
+    return kind ? [{ transaction, kind }] : [];
+  });
 }

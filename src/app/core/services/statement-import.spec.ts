@@ -1,5 +1,7 @@
 import {
   NO_COLUMN,
+  cardCreditKind,
+  misreadCardCredits,
   detectColumns,
   findHeaderRow,
   hasOnlyPositiveAmounts,
@@ -125,6 +127,28 @@ describe('readStatement', () => {
     expect(readStatement(rows, mapping, { positiveIsExpense: true }).rows.map(r => r.type)).toEqual(['income', 'expense']);
   });
 
+  it('should read BCI card payments and refunds, cut to the column width, as income', () => {
+    const rows = [
+      ['29/10/2026', 'MONTO CANCELAD', '$ 484.237'],
+      ['22/10/2026', 'NOTA DE CREDITO NACIONA', '$ 40.491'],
+      ['23/10/2026', 'NOTA DEBITO DEVO LUCIO', '$ 40.491'],
+      ['29/10/2026', 'AVANCE EN 4 CUOT A', '$ 171.845'],
+    ];
+    const mapping = { date: 0, description: 1, amount: 2, debit: NO_COLUMN, credit: NO_COLUMN };
+    expect(readStatement(rows, mapping, { positiveIsExpense: true }).rows).toEqual([
+      { date: '2026-10-29', description: 'MONTO CANCELAD', amount: 484237, type: 'income' },
+      { date: '2026-10-22', description: 'NOTA DE CREDITO NACIONA', amount: 40491, type: 'income', category: 'Devoluciones' },
+      { date: '2026-10-23', description: 'NOTA DEBITO DEVO LUCIO', amount: 40491, type: 'expense' },
+      { date: '2026-10-29', description: 'AVANCE EN 4 CUOT A', amount: 171845, type: 'expense' },
+    ]);
+  });
+
+  it('should keep the category of the file for a refund', () => {
+    const rows = [['22/10/2026', 'NOTA DE CREDITO', 'Compras', '5.585']];
+    const mapping = { date: 0, description: 1, amount: NO_COLUMN, debit: NO_COLUMN, credit: 3, category: 2 };
+    expect(readStatement(rows, mapping).rows[0].category).toBe('Compras');
+  });
+
   it('should take the sign of an unsigned amount from the balance, newest first or last', () => {
     const newestFirst = [
       ['20/10/2026', 'Compra', '1.390', '8.841'],
@@ -177,11 +201,42 @@ describe('isSameMovement', () => {
   });
 });
 
+describe('cardCreditKind', () => {
+  it('should tell card payments and refunds from charges', () => {
+    expect(cardCreditKind('MONTO CANCELADO')).toBe('payment');
+    expect(cardCreditKind('MONTO CANCELAD')).toBe('payment');
+    expect(cardCreditKind('PAC NACIONA')).toBe('payment');
+    expect(cardCreditKind('Nota de credito nacional')).toBe('refund');
+    expect(cardCreditKind('NOTA DE CRÉDITO')).toBe('refund');
+    expect(cardCreditKind('PAGO DEVOLUCION DE INTERESE')).toBe('refund');
+    expect(cardCreditKind('NOTA DEBITO DEVO LUCIO')).toBeNull();
+    expect(cardCreditKind('AJUSTE PAGO DUPL ICADO')).toBeNull();
+    expect(cardCreditKind('MERPAGO*GLOBALEX PRES')).toBeNull();
+  });
+});
+
+describe('misreadCardCredits', () => {
+  const tx = (id: string, accountId: string, description: string, type: 'income' | 'expense') =>
+    ({ id, accountId, description, type, date: '2026-10-22', amount: 1000, categoryId: 'x' });
+
+  it('should find payments and refunds saved as expenses of a card', () => {
+    const found = misreadCardCredits([
+      tx('a', 'card', 'MONTO CANCELAD', 'expense'),
+      tx('b', 'card', 'NOTA DE CREDITO NACIONA', 'expense'),
+      tx('c', 'card', 'NOTA DEBITO DEVO LUCIO', 'expense'),
+      tx('d', 'card', 'MONTO CANCELADO', 'income'),
+      tx('e', 'cc', 'MONTO CANCELADO', 'expense'),
+    ], new Set(['card']));
+    expect(found.map(f => [f.transaction.id, f.kind])).toEqual([['a', 'payment'], ['b', 'refund']]);
+  });
+});
+
 describe('ownTransferKind', () => {
   it('should recognize card payments and moves between own accounts', () => {
     expect(ownTransferKind('PAGO TARJETA DE CREDITO MASTERCARD')).toBe('card');
     expect(ownTransferKind('Pago Tarjeta De Credito Mastercard')).toBe('card');
     expect(ownTransferKind('MONTO CANCELADO')).toBe('card');
+    expect(ownTransferKind('MONTO CANCELAD')).toBe('card');
     expect(ownTransferKind('TRASPASO DE FONDOS ENTRE CUENTAS PROPIAS')).toBe('own');
     expect(ownTransferKind('ABONO POR TRASPASO FONDOS CUENTA PROPIA')).toBe('own');
     expect(ownTransferKind('TRANSFER A XPRESS LIMITAD')).toBeNull();
@@ -261,6 +316,13 @@ describe('planCardPaymentTransfers', () => {
     expect(plan.remove).toEqual(['a', 'b']);
     expect(plan.transfers).toEqual([
       { fromAccountId: 'cc', toAccountId: 'card', amount: 10000, date: '2026-10-19', description: 'PAGO TARJETA DE CREDITO MASTERCARD' },
+    ]);
+  });
+
+  it('should send a payment saved as an expense of the card into the card', () => {
+    const plan = planCardPaymentTransfers([tx('a', 'card', 'MONTO CANCELAD', 'expense', '2026-10-29')], [], 'card', 'cc', currency);
+    expect(plan.transfers).toEqual([
+      { fromAccountId: 'cc', toAccountId: 'card', amount: 10000, date: '2026-10-29', description: 'MONTO CANCELAD' },
     ]);
   });
 

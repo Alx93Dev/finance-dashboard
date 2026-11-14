@@ -243,6 +243,16 @@ export class TransactionService {
     });
   }
 
+  /** Replaces several transactions at once, matched by id. */
+  updateMany(transactions: Transaction[]): void {
+    const changed = new Map(transactions.map(t => [t.id, t]));
+    this.transactions.update(current => {
+      const updated = current.map(t => changed.get(t.id) ?? t);
+      this.storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+  }
+
   update(transaction: Transaction): void {
     this.transactions.update(current => {
       const updated = current.map(t => t.id === transaction.id ? transaction : t);

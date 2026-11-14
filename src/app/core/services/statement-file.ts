@@ -441,19 +441,19 @@ export function readXls(bytes: Uint8Array): string[][] {
 // ----------------------------------------------------------------------- pdf
 
 async function readPdf(bytes: Uint8Array): Promise<string[][]> {
-  let pages;
+  let content;
   try {
-    pages = await readPdfText(bytes);
+    content = await readPdfText(bytes);
   } catch (error) {
     if ((error as Error)?.name === 'PasswordException') {
       throw new StatementFileError('El PDF está protegido con contraseña. Descárgalo sin contraseña e intenta de nuevo.');
     }
     throw new StatementFileError('No pudimos abrir el PDF.');
   }
-  if (pages.every(page => page.length === 0)) {
+  if (content.pages.every(page => page.length === 0)) {
     throw new StatementFileError('El PDF no tiene texto (parece una imagen escaneada). Prueba con la cartola en Excel o CSV.');
   }
-  return pdfTableRows(pages);
+  return pdfTableRows(content.pages, content.marks);
 }
 
 // ---------------------------------------------------------------------- html

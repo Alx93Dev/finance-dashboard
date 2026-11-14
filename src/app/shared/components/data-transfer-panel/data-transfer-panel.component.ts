@@ -6,9 +6,17 @@ import { BackupService } from '../../../core/services/backup.service';
 import { BackupData, parseBackup, toCsv } from '../../../core/services/data-transfer';
 import { StatementImportComponent } from '../statement-import/statement-import.component';
 import { StatementFileError, readStatementFile } from '../../../core/services/statement-file';
-import { normalize, planCardPaymentTransfers } from '../../../core/services/statement-import';
+import {
+  CARD_PAYMENT_CATEGORY,
+  REFUND_CATEGORY,
+  isCardAccount,
+  misreadCardCredits,
+  normalize,
+  planCardPaymentTransfers,
+} from '../../../core/services/statement-import';
 import { SyncPanelComponent } from '../sync-panel/sync-panel.component';
 import { SyncService } from '../../../core/sync/sync.service';
+import { unusedColor } from '../../../core/models/category.model';
 
 function today(): string {
   const now = new Date();
@@ -58,6 +66,17 @@ const BUTTON = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border borde
 
       @if (statementRows(); as rows) {
         <app-statement-import [rows]="rows" (imported)="onStatementImported($event)" (closed)="statementRows.set(null)" />
+      }
+
+      @if (!statementRows() && cardCredits().length > 0) {
+        <div class="mt-3 p-3 rounded-lg border border-gray-200 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">
+          <p>
+            Tienes {{ cardCredits().length }} {{ cardCredits().length === 1 ? 'abono a la tarjeta guardado' : 'abonos a la tarjeta guardados' }}
+            como gasto (pagos o devoluciones, como «Monto cancelado» o «Nota de crédito»). Son dinero que entra a la tarjeta:
+            puedes corregirlos para que bajen lo que debes en vez de sumarse a tus gastos.
+          </p>
+          <button type="button" class="mt-2" [class]="buttonClass" (click)="fixCardCredits()">Corregir {{ cardCredits().length }}</button>
+        </div>
       }
 
       @if (!statementRows() && cardPlan().remove.length > 0) {
@@ -121,7 +140,7 @@ export class DataTransferPanelComponent {
     const accounts = this.accounts.accounts();
     const chosen = this.cardAccountId();
     if (accounts.some(a => a.id === chosen)) return chosen;
-    return accounts.find(a => /tarjeta|credito|visa|mastercard/.test(normalize(a.name)))?.id ?? '';
+    return accounts.find(isCardAccount)?.id ?? '';
   });
   protected readonly cardPlan = computed(() => {
     const card = this.cardAccount();
@@ -133,6 +152,27 @@ export class DataTransferPanelComponent {
       this.tx.transactions(), this.accounts.transfers(), card, other, id => this.accounts.getById(id)?.currency
     );
   });
+
+  /** Payments and refunds saved as expenses of a credit card account. */
+  protected readonly cardCredits = computed(() => {
+    const cards = new Set(this.accounts.accounts().filter(isCardAccount).map(a => a.id));
+    return cards.size === 0 ? [] : misreadCardCredits(this.tx.transactions(), cards);
+  });
+
+  fixCardCredits(): void {
+    const found = this.cardCredits();
+    const categoryId = (name: string) => {
+      const key = normalize(name);
+      const existing = this.tx.categories().find(c => c.type === 'income' && normalize(c.name) === key);
+      return (existing ?? this.tx.addCategory({ name, type: 'income', color: unusedColor(this.tx.categories()) })).id;
+    };
+    const ids = {
+      refund: found.some(f => f.kind === 'refund') ? categoryId(REFUND_CATEGORY) : '',
+      payment: found.some(f => f.kind === 'payment') ? categoryId(CARD_PAYMENT_CATEGORY) : '',
+    };
+    this.tx.updateMany(found.map(({ transaction, kind }) => ({ ...transaction, type: 'income', categoryId: ids[kind] })));
+    this.showMessage(`Se corrigieron ${found.length} ${found.length === 1 ? 'abono' : 'abonos'} de tarjeta: ahora cuentan como dinero que entra a la tarjeta.`, false);
+  }
 
   convertCardPayments(): void {
     const { transfers, remove } = this.cardPlan();

@@ -105,4 +105,31 @@ describe('DataTransferPanelComponent', () => {
     expect(root.textContent).toContain('Se convirtieron 2 pagos de tarjeta en 1 transferencia.');
     expect(root.textContent).not.toContain('Tienes 2 pagos');
   });
+
+  it('should turn card payments and refunds saved as expenses into money into the card', async () => {
+    localStorage.setItem('schema_version', '8');
+    localStorage.setItem('accounts', JSON.stringify([
+      { id: 'card', name: 'Tarjeta Credito BCI Plus', initialBalance: 0, currency: 'CLP' },
+    ]));
+    localStorage.setItem('transactions', JSON.stringify([
+      { id: 'm', description: 'MONTO CANCELAD', amount: 484237, categoryId: '8', date: '2026-10-29', type: 'expense', accountId: 'card' },
+      { id: 'n', description: 'NOTA DE CREDITO NACIONA', amount: 40491, categoryId: '8', date: '2026-10-22', type: 'expense', accountId: 'card' },
+      { id: 'd', description: 'NOTA DEBITO DEVO LUCIO', amount: 40491, categoryId: '8', date: '2026-10-23', type: 'expense', accountId: 'card' },
+    ]));
+    const fixture = TestBed.createComponent(DataTransferPanelComponent);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Tienes 2 abonos a la tarjeta guardados');
+
+    button(root, 'Corregir 2').click();
+    await fixture.whenStable();
+
+    const tx = TestBed.inject(TransactionService);
+    const category = (id: string) => tx.getCategoryById(tx.transactions().find(t => t.id === id)!.categoryId);
+    expect(tx.transactions().map(t => [t.id, t.type])).toEqual([['m', 'income'], ['n', 'income'], ['d', 'expense']]);
+    expect(category('m')).toMatchObject({ name: 'Pago tarjeta de crédito', type: 'income' });
+    expect(category('n')).toMatchObject({ name: 'Devoluciones', type: 'income' });
+    expect(root.textContent).toContain('Se corrigieron 2 abonos de tarjeta');
+    expect(root.textContent).not.toContain('Tienes 2 abonos');
+  });
 });

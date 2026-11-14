@@ -62,4 +62,24 @@ test('shows a credit card by billing period and adjusts a closing day', async ({
   await page.getByRole('button', { name: 'Período siguiente' }).click();
   await expect(month).toContainText('Facturación 18 sept – 19 oct');
   await expect(summary).toContainText('$49.980');
+
+  // The period can be set to the dates the bank shows, from the dashboard.
+  await page.getByRole('button', { name: 'Editar período de facturación' }).click();
+  const editor = page.getByRole('form', { name: /Período facturado de/ });
+  await editor.getByLabel('Desde').fill('2026-09-16');
+  await editor.getByLabel('Hasta (cierre)').fill('2026-10-21');
+  await editor.getByLabel('Vencimiento (opcional)').fill('2026-11-05');
+  await editor.getByRole('button', { name: 'Guardar período' }).click();
+  await expect(editor).toBeHidden();
+  await expect(month).toContainText('Facturación 16 sept – 21 oct');
+  await expect(month).toContainText('Vence el 5 nov');
+  await page.getByRole('button', { name: 'Período anterior' }).click();
+  await expect(month).toContainText('Facturación 20 ago – 15 sept');
+  await expect(summary).toContainText('$2.790');
+
+  // Dates that can't be that period are refused.
+  await page.getByRole('button', { name: 'Editar período de facturación' }).click();
+  await editor.getByLabel('Hasta (cierre)').fill('2026-11-02');
+  await editor.getByRole('button', { name: 'Guardar período' }).click();
+  await expect(editor.getByRole('alert')).toContainText('mismo mes');
 });

@@ -8,6 +8,8 @@ export interface BillingPeriod {
   start: string;
   /** Closing day, 'YYYY-MM-DD'. */
   end: string;
+  /** Day the statement must be paid by, 'YYYY-MM-DD', when it was given. */
+  due?: string;
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -49,7 +51,9 @@ export function closingDate(cycle: BillingCycle, month: string): string {
 
 /** The period that closes in a month. */
 export function periodClosingIn(cycle: BillingCycle, month: string): BillingPeriod {
-  return { month, start: addDays(closingDate(cycle, shiftMonth(month, -1)), 1), end: closingDate(cycle, month) };
+  const period: BillingPeriod = { month, start: addDays(closingDate(cycle, shiftMonth(month, -1)), 1), end: closingDate(cycle, month) };
+  const due = cycle.dueDates?.[month];
+  return due ? { ...period, due } : period;
 }
 
 /** The period a day is billed in. */
@@ -77,7 +81,47 @@ export function periodsBetween(cycle: BillingCycle, first: string, last: string)
 export function withClosing(cycle: BillingCycle, date: string): BillingCycle {
   const month = date.slice(0, 7);
   const closings = [...(cycle.closings ?? []).filter(d => !d.startsWith(month)), date].sort();
-  return { closingDay: cycle.closingDay, closings };
+  return { ...cycle, closings };
+}
+
+/** Dates typed for the period that closes in a month. */
+export interface PeriodDates {
+  start: string;
+  end: string;
+  /** Empty or missing to drop the due date. */
+  due?: string;
+}
+
+/**
+ * Why the dates can't be the period that closes in `month`, or null when they
+ * can. The period has to close in that month and start in the month before,
+ * the day after the previous closing.
+ */
+export function periodDatesError(month: string, dates: PeriodDates): string | null {
+  if (!isDate(dates.start) || !isDate(dates.end)) return 'Indica la fecha de inicio y la de cierre.';
+  if (!dates.end.startsWith(month)) return 'El cierre tiene que caer en el mismo mes del período.';
+  if (!addDays(dates.start, -1).startsWith(shiftMonth(month, -1))) {
+    return 'El período tiene que empezar el día después del cierre del mes anterior.';
+  }
+  if (dates.start > dates.end) return 'El inicio tiene que ser antes del cierre.';
+  if (dates.due && !isDate(dates.due)) return 'La fecha de vencimiento no es válida.';
+  if (dates.due && dates.due < dates.end) return 'El vencimiento tiene que ser después del cierre.';
+  return null;
+}
+
+/**
+ * The cycle with the period closing in `month` running between the given
+ * dates: it closes on `end`, and the period before it closes the day before
+ * `start`. Throws when the dates can't be that period.
+ */
+export function withPeriod(cycle: BillingCycle, month: string, dates: PeriodDates): BillingCycle {
+  const error = periodDatesError(month, dates);
+  if (error) throw new Error(error);
+  const updated = withClosing(withClosing(cycle, addDays(dates.start, -1)), dates.end);
+  const { [month]: _, ...dueDates } = cycle.dueDates ?? {};
+  if (dates.due) dueDates[month] = dates.due;
+  const { dueDates: __, ...rest } = updated;
+  return Object.keys(dueDates).length > 0 ? { ...rest, dueDates } : rest;
 }
 
 /** A stored or restored cycle, or undefined when it is damaged. Unreadable closing dates are dropped. */
@@ -89,5 +133,13 @@ export function parseBillingCycle(value: unknown): BillingCycle | undefined {
   // Keep one date per month, the last one given.
   const byMonth = new Map(dates.map(date => [date.slice(0, 7), date]));
   const closings = [...byMonth.values()].sort();
-  return closings.length > 0 ? { closingDay: raw['closingDay'], closings } : { closingDay: raw['closingDay'] };
+  const cycle: BillingCycle = closings.length > 0 ? { closingDay: raw['closingDay'], closings } : { closingDay: raw['closingDay'] };
+  const rawDues = raw['dueDates'];
+  if (rawDues && typeof rawDues === 'object' && !Array.isArray(rawDues)) {
+    const dueDates = Object.fromEntries(
+      Object.entries(rawDues).filter(([month, date]) => /^\d{4}-\d{2}$/.test(month) && isDate(date))
+    ) as Record<string, string>;
+    if (Object.keys(dueDates).length > 0) cycle.dueDates = dueDates;
+  }
+  return cycle;
 }

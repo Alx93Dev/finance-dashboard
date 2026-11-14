@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Account, BillingCycle, DEFAULT_ACCOUNTS, MAIN_ACCOUNT_ID } from '../models/account.model';
 import { Transfer } from '../models/transfer.model';
-import { isClosingDay, isDate, withClosing } from './billing-period';
+import { PeriodDates, isClosingDay, isDate, withClosing, withPeriod } from './billing-period';
 import { ExchangeRateService } from './exchange-rate.service';
 import { RecurringService } from './recurring.service';
 import { StorageService } from './storage.service';
@@ -124,6 +124,18 @@ export class AccountService {
       const cycle: BillingCycle = a.billing ?? { closingDay: Number(date.slice(8)) };
       return { ...a, billing: withClosing(cycle, date) };
     }));
+  }
+
+  /**
+   * Sets the dates of the period a card's statement closes in a 'YYYY-MM'
+   * month, as the bank shows them. Moves the previous period's closing to the
+   * day before `start`. Throws when the dates can't be that period.
+   */
+  setPeriod(id: string, month: string, dates: PeriodDates): void {
+    const billing = this.getById(id)?.billing;
+    if (!billing) return;
+    const updated = withPeriod(billing, month, dates);
+    this.setAccounts(this.accounts().map(a => (a.id === id ? { ...a, billing: updated } : a)));
   }
 
   /** Number of transactions and transfers recorded in an account. */

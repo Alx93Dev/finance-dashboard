@@ -12,6 +12,11 @@ export interface BillingCycle {
    * when the bank closed on another day. Sorted oldest first.
    */
   closings?: string[];
+  /**
+   * Payment due dates as 'YYYY-MM-DD', by the 'YYYY-MM' month the period
+   * closes in, for the periods whose due date was given.
+   */
+  dueDates?: Record<string, string>;
 }
 
 /** Where money is kept: a bank account, cash, a card, etc. */

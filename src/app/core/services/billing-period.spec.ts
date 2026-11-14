@@ -1,4 +1,4 @@
-import { closingDate, parseBillingCycle, periodClosingIn, periodOf, periodsBetween, withClosing } from './billing-period';
+import { closingDate, parseBillingCycle, periodClosingIn, periodDatesError, periodOf, periodsBetween, withClosing, withPeriod } from './billing-period';
 
 describe('billing periods', () => {
   const cycle = { closingDay: 19, closings: ['2026-08-19', '2026-09-17'] };
@@ -50,5 +50,35 @@ describe('billing periods', () => {
     expect(parseBillingCycle({ closingDay: 19.5 })).toBeUndefined();
     expect(parseBillingCycle('19')).toBeUndefined();
     expect(parseBillingCycle(undefined)).toBeUndefined();
+  });
+
+  it('should set a whole period, moving the previous closing and keeping the due date', () => {
+    const bci = { closingDay: 19, closings: ['2026-10-21'] };
+    const edited = withPeriod(bci, '2026-10', { start: '2026-09-18', end: '2026-10-21', due: '2026-11-05' });
+    expect(edited).toEqual({ closingDay: 19, closings: ['2026-09-17', '2026-10-21'], dueDates: { '2026-10': '2026-11-05' } });
+    expect(periodClosingIn(edited, '2026-10')).toEqual({ month: '2026-10', start: '2026-09-18', end: '2026-10-21', due: '2026-11-05' });
+    expect(periodClosingIn(edited, '2026-11').start).toBe('2026-10-22');
+
+    const next = withPeriod(edited, '2026-11', { start: '2026-10-22', end: '2026-11-19' });
+    expect(periodClosingIn(next, '2026-11')).toEqual({ month: '2026-11', start: '2026-10-22', end: '2026-11-19' });
+    expect(periodClosingIn(next, '2026-10').due).toBe('2026-11-05');
+    expect(withPeriod(next, '2026-10', { start: '2026-09-18', end: '2026-10-21', due: '' })).not.toHaveProperty('dueDates');
+  });
+
+  it('should refuse dates that cannot be the period closing in that month', () => {
+    expect(periodDatesError('2026-10', { start: '2026-09-18', end: '2026-10-21' })).toBeNull();
+    expect(periodDatesError('2026-10', { start: '2026-10-01', end: '2026-10-21' })).toBeNull();
+    expect(periodDatesError('2026-10', { start: '2026-09-18', end: '2026-11-02' })).toContain('cierre');
+    expect(periodDatesError('2026-10', { start: '2026-08-30', end: '2026-10-21' })).toContain('empezar');
+    expect(periodDatesError('2026-10', { start: '2026-10-02', end: '2026-10-21' })).toContain('empezar');
+    expect(periodDatesError('2026-10', { start: '', end: '2026-10-21' })).not.toBeNull();
+    expect(periodDatesError('2026-10', { start: '2026-09-18', end: '2026-10-21', due: '2026-10-01' })).toContain('vencimiento');
+    expect(() => withPeriod({ closingDay: 19 }, '2026-10', { start: '2026-10-25', end: '2026-10-21' })).toThrow();
+  });
+
+  it('should read stored due dates, dropping damaged ones', () => {
+    expect(parseBillingCycle({ closingDay: 19, dueDates: { '2026-10': '2026-11-05', '2026-11': 'pronto', otro: '2026-11-05' } }))
+      .toEqual({ closingDay: 19, dueDates: { '2026-10': '2026-11-05' } });
+    expect(parseBillingCycle({ closingDay: 19, dueDates: ['2026-11-05'] })).toEqual({ closingDay: 19 });
   });
 });
